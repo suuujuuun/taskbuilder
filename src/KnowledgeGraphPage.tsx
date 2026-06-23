@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -15,7 +15,7 @@ export default function KnowledgeGraphPage() {
   const [editContent, setEditContent] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   
-  const graphRef = useRef<ForceGraphMethods>();
+  const graphRef = useRef<any>();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 

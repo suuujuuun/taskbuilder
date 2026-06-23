@@ -27,15 +27,15 @@ export interface AddProgressLogPayload {
 }
 
 export interface Todo {
-  id: string;
-  title: string;
+  id: number;
+  text: string;
   completed: boolean;
 }
 
 export type PaperStatus = 'Not Started' | 'In Progress' | 'Completed';
 
 export interface Paper {
-  id: string;
+  id: number;
   title: string;
   url: string;
   status: PaperStatus;
