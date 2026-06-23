@@ -276,7 +276,7 @@ function App() {
       <div className="container-fluid vh-100 d-flex flex-column p-4">
         <header className="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-secondary">
           <div>
-            <h1 className="h3 mb-0 text-primary"><FaBookReader className="me-2"/>Reading Progress Tracker</h1>
+            <h1 className="h3 mb-0 text-white"><FaBookReader className="me-2"/>Reading Progress Tracker</h1>
           </div>
           <div className="btn-group">
             <button type="button" className={`btn btn-sm ${view === 'details' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setView('details')}>
