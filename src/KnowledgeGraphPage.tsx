@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import 'katex/dist/contrib/mhchem.mjs';
 import { FaPlus, FaSave, FaTrash, FaLink, FaSearch } from 'react-icons/fa';
 import type { ConceptData, ConceptNode } from './types';
 
@@ -90,9 +91,13 @@ export default function KnowledgeGraphPage() {
     if (!selectedNode) return;
     if (!confirm('Are you sure you want to delete this concept?')) return;
     
+    // ForceGraph mutates string IDs into objects
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getLinkId = (linkNode: any) => typeof linkNode === 'object' ? linkNode.id : linkNode;
+
     const newData = {
       nodes: data.nodes.filter(n => n.id !== selectedNode.id),
-      links: data.links.filter(l => l.source !== selectedNode.id && l.target !== selectedNode.id)
+      links: data.links.filter(l => getLinkId(l.source) !== selectedNode.id && getLinkId(l.target) !== selectedNode.id)
     };
     saveData(newData);
     setSelectedNode(null);
