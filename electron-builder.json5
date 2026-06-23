@@ -6,7 +6,7 @@
     "dist-electron"
   ],
   "directories": {
-    "output": "release/${version}"
+    "output": "build-output/${version}"
   },
   "win": {
     "target": "nsis",
