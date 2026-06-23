@@ -279,9 +279,9 @@ export default function KnowledgeGraphPage() {
           </>
         ) : (
           <div className="h-100 d-flex flex-column justify-content-center align-items-center text-muted p-4 text-center" style={{ backgroundColor: '#1e1e1e' }}>
-            <div className="display-1 mb-3 opacity-25">🧠</div>
-            <h4 className="fw-bold">Knowledge Graph</h4>
-            <p className="px-4">Select a node from the graph to view its details, or create a new concept to start building your knowledge base.</p>
+            <div className="display-1 mb-3 opacity-25">🌌</div>
+            <h5 className="fw-bold fst-italic">"Somewhere, something incredible is waiting to be known."</h5>
+            <p className="px-4 opacity-75">— Carl Sagan</p>
           </div>
         )}
       </div>
