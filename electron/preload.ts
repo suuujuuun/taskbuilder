@@ -1,5 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron';
-import type { Document, NewDocument, AddProgressLogPayload, Todo, Paper } from '../src/types';
+import type { Document, NewDocument, AddProgressLogPayload, Todo, Paper, ConceptData } from '../src/types';
 
 const api = {
   getDocuments: (): Promise<Document[]> => ipcRenderer.invoke('get-documents'),
@@ -23,6 +23,9 @@ const api = {
   
   exportData: (): Promise<boolean> => ipcRenderer.invoke('export-data'),
   importData: (): Promise<boolean> => ipcRenderer.invoke('import-data'),
+
+  getConcepts: (): Promise<ConceptData> => ipcRenderer.invoke('get-concepts'),
+  saveConcepts: (concepts: ConceptData): Promise<ConceptData> => ipcRenderer.invoke('save-concepts', concepts),
 };
 
 contextBridge.exposeInMainWorld('api', api);

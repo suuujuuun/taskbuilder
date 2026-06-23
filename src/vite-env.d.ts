@@ -26,6 +26,9 @@ declare global {
       
       exportData: () => Promise<boolean>;
       importData: () => Promise<boolean>;
+
+      getConcepts: () => Promise<import('./types').ConceptData>;
+      saveConcepts: (concepts: import('./types').ConceptData) => Promise<import('./types').ConceptData>;
     };
   }
 }

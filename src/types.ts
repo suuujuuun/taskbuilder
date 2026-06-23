@@ -27,16 +27,34 @@ export interface AddProgressLogPayload {
 }
 
 export interface Todo {
-  id: number;
-  text: string;
+  id: string;
+  title: string;
   completed: boolean;
 }
 
 export type PaperStatus = 'Not Started' | 'In Progress' | 'Completed';
 
 export interface Paper {
-  id: number;
+  id: string;
   title: string;
   url: string;
   status: PaperStatus;
+}
+
+export interface ConceptNode {
+  id: string;
+  title: string;
+  content: string;
+  x?: number;
+  y?: number;
+}
+
+export interface ConceptLink {
+  source: string;
+  target: string;
+}
+
+export interface ConceptData {
+  nodes: ConceptNode[];
+  links: ConceptLink[];
 }

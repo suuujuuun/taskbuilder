@@ -7,9 +7,10 @@ import { ErrorDisplay } from './ErrorDisplay';
 import { OverviewPage } from './OverviewPage';
 import { PlanningPage } from './PlanningPage';
 import { PapersPage } from './PapersPage';
+import KnowledgeGraphPage from './KnowledgeGraphPage';
 import { FaFileAlt, FaCheckSquare } from 'react-icons/fa';
 
-type View = 'details' | 'overview' | 'papers' | 'planning';
+type View = 'details' | 'overview' | 'papers' | 'planning' | 'graph';
 
 function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -58,7 +59,7 @@ function App() {
     setNextPage(latestLog?.page ?? '');
     setNextTopic('');
     setNextSatisfaction('');
-  }, [selectedDocument?.id]);
+  }, [selectedDocument?.id, selectedDocument]);
 
   const handleAddDocument = async (newDoc: NewDocument) => {
     window.api.addDocument(newDoc)
@@ -269,6 +270,8 @@ function App() {
     mainContent = <PapersPage />;
   } else if (view === 'planning') {
     mainContent = <PlanningPage />;
+  } else if (view === 'graph') {
+    mainContent = <KnowledgeGraphPage />;
   }
 
   return (
@@ -290,6 +293,9 @@ function App() {
             </button>
             <button type="button" className={`btn btn-sm ${view === 'planning' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setView('planning')}>
               <FaCheckSquare className='me-2'/> To-Do & Memo
+            </button>
+            <button type="button" className={`btn btn-sm ${view === 'graph' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setView('graph')}>
+              🧠 Knowledge Graph
             </button>
           </div>
           <div className="btn-group ms-3">

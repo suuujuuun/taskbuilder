@@ -73,6 +73,21 @@ app.whenReady().then(() => {
   const papersPath = path.join(userDataPath, 'papers.json');
   const todosPath = path.join(userDataPath, 'todos.json');
   const memoPath = path.join(userDataPath, 'memo.json');
+  const conceptsPath = path.join(userDataPath, 'concepts.json');
+
+  // Ensure data files exist
+  async function ensureDataFiles() {
+    try {
+      await fs.access(dataPath).catch(() => fs.writeFile(dataPath, '[]'));
+      await fs.access(papersPath).catch(() => fs.writeFile(papersPath, '[]'));
+      await fs.access(todosPath).catch(() => fs.writeFile(todosPath, '[]'));
+      await fs.access(memoPath).catch(() => fs.writeFile(memoPath, '""'));
+      await fs.access(conceptsPath).catch(() => fs.writeFile(conceptsPath, JSON.stringify({ nodes: [], links: [] })));
+    } catch (error) {
+      console.error('Error initializing data files:', error);
+    }
+  }
+  ensureDataFiles();
 
   ipcMain.handle('get-documents', async () => {
     try {
@@ -254,6 +269,26 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('get-concepts', async () => {
+    try {
+      const data = await fs.readFile(conceptsPath, 'utf-8');
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Failed to load concepts:', error);
+      return { nodes: [], links: [] };
+    }
+  });
+
+  ipcMain.handle('save-concepts', async (_event, concepts) => {
+    try {
+      await fs.writeFile(conceptsPath, JSON.stringify(concepts, null, 2));
+      return concepts;
+    } catch (error) {
+      console.error('Failed to save concepts:', error);
+      throw new Error('Failed to save concepts.');
+    }
+  });
+
   ipcMain.handle('export-data', async () => {
     try {
       const { canceled, filePath } = await dialog.showSaveDialog({
@@ -268,12 +303,14 @@ app.whenReady().then(() => {
       const papersStr = await fs.readFile(papersPath, 'utf-8').catch(() => '[]');
       const todosStr = await fs.readFile(todosPath, 'utf-8').catch(() => '[]');
       const memoStr = await fs.readFile(memoPath, 'utf-8').catch(() => '""');
+      const conceptsStr = await fs.readFile(conceptsPath, 'utf-8').catch(() => '{"nodes":[],"links":[]}');
 
       const exportObj = {
         data: JSON.parse(dataStr),
         papers: JSON.parse(papersStr),
         todos: JSON.parse(todosStr),
-        memo: JSON.parse(memoStr)
+        memo: JSON.parse(memoStr),
+        concepts: JSON.parse(conceptsStr)
       };
 
       await fs.writeFile(filePath, JSON.stringify(exportObj, null, 2), 'utf-8');
@@ -301,6 +338,7 @@ app.whenReady().then(() => {
       if (importObj.papers) await fs.writeFile(papersPath, JSON.stringify(importObj.papers, null, 2));
       if (importObj.todos) await fs.writeFile(todosPath, JSON.stringify(importObj.todos, null, 2));
       if (importObj.memo !== undefined) await fs.writeFile(memoPath, JSON.stringify(importObj.memo, null, 2));
+      if (importObj.concepts) await fs.writeFile(conceptsPath, JSON.stringify(importObj.concepts, null, 2));
 
       return true;
     } catch (error) {
