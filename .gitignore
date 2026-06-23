@@ -25,6 +25,7 @@ dist-ssr
 
 # Electron build artifacts
 release/
+build-output/
 dist-electron/
 dist/
 **/*.exe
@@ -32,6 +33,8 @@ dist/
 **/*.pak
 **/*.bin
 **/*.dat
+**/*.asar
+**/*.blockmap
 electron/resources/
 electron/locales/
 electron/electron.exe
