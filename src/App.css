@@ -1,0 +1,143 @@
+:root {
+  --bg-color: #1c1c21;
+  --card-color: #25252c;
+  --border-color: #3f3f4a;
+  --text-color: #e8e8e8;
+  --text-muted-color: #a9a9b1;
+  --primary-color: #8A63D2; /* A nice purple accent */
+  --danger-color: #E15D5D;
+  --success-color: #5DE193;
+}
+
+body {
+  background-color: var(--bg-color) !important;
+  color: var(--text-color) !important;
+  font-size: 0.9rem;
+}
+
+.container-fluid {
+  background-color: var(--bg-color);
+}
+
+.card {
+  background-color: var(--card-color);
+  border: 1px solid transparent; /* Keep border for layout but make it transparent */
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s ease-in-out;
+}
+
+.card .card-body {
+  padding: 0.7rem;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.list-group-item {
+  background-color: transparent;
+  border: none;
+  padding: 0 !important;
+  margin-bottom: 0.5rem;
+}
+
+.list-group-item .card {
+  cursor: pointer;
+}
+
+.list-group-item.active .card {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border-left: 3px solid var(--primary-color);
+  background-color: #2f2f38;
+}
+
+.progress {
+  background-color: #3b424c;
+  height: 5px !important;
+  border-radius: 5px;
+}
+
+.progress-bar {
+  background-color: var(--primary-color);
+}
+
+.btn {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.8rem;
+  border: none;
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn:hover {
+    filter: brightness(1.1);
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+}
+
+.btn-danger {
+  background-color: var(--danger-color);
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    color: #1a1d21;
+}
+
+.btn-secondary {
+    background-color: #4a4f58;
+}
+
+.modal-content {
+  background-color: var(--card-color);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+.form-label {
+    font-size: 0.85rem;
+}
+
+.form-control {
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  font-size: 0.9rem;
+  border-radius: 6px;
+}
+
+.form-control:focus {
+  background-color: var(--bg-color);
+  border-color: var(--primary-color);
+  color: var(--text-color);
+  box-shadow: 0 0 0 0.2rem rgba(138, 99, 210, 0.25);
+}
+
+.sticky-top {
+  background-color: var(--bg-color);
+}
+
+.text-muted {
+  color: var(--text-muted-color) !important;
+}
+
+.border-end {
+  border-color: #2a2a31 !important;
+}
+
+.hr {
+  border-color: var(--border-color);
+}
+h1, h2, h3, h5 {
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+h2 { font-size: 1.2rem; }
+h3 { font-size: 1.1rem; }
+h5 { font-size: 0.9rem; }
+p, small { font-size: 0.85rem; }

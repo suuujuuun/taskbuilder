@@ -1,0 +1,34 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color: #f0f0f0;
+  background-color: #1a1a1a;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #121212;
+  color: #f0f0f0;
+  /* 원인이었던 display: flex 와 place-items: center 를 삭제했습니다 */
+}
+
+/* 앱의 메인 컨테이너가 화면 전체 너비를 사용하도록 강제합니다 */
+#root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}

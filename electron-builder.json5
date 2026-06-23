@@ -1,0 +1,20 @@
+{
+  "appId": "com.example.readingprogresstracker",
+  "productName": "Reading Progress Tracker",
+  "files": [
+    "dist",
+    "dist-electron"
+  ],
+  "directories": {
+    "output": "release/${version}"
+  },
+  "win": {
+    "target": "nsis",
+    "publish": null,
+    "verifyUpdateCodeSignature": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}

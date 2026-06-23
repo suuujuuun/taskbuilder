@@ -1,0 +1,31 @@
+[
+  {
+    "id": 1,
+    "title": "Deep Learning by Ian Goodfellow",
+    "totalPages": 775,
+    "cycles": [
+      {
+        "cycleNumber": 1,
+        "currentPage": 150,
+        "currentTopic": "Introduction to Neural Networks"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "title": "The Rust Programming Language",
+    "totalPages": 588,
+    "cycles": [
+      {
+        "cycleNumber": 1,
+        "currentPage": 50,
+        "currentTopic": "Ownership"
+      },
+      {
+        "cycleNumber": 2,
+        "currentPage": 25,
+        "currentTopic": "Reviewing Basics"
+      }
+    ]
+  }
+]
