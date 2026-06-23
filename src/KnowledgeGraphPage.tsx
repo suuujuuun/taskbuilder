@@ -78,13 +78,19 @@ export default function KnowledgeGraphPage() {
 
   const handleSaveNode = () => {
     if (!selectedNode) return;
-    const newData = {
-      ...data,
-      nodes: data.nodes.map(n => n.id === selectedNode.id ? { ...n, title: editTitle, shortName: editShortName, content: editContent } : n)
-    };
+    
+    // Mutate the existing node to preserve d3 physics engine memory references
+    const targetNode = data.nodes.find(n => n.id === selectedNode.id);
+    if (targetNode) {
+      targetNode.title = editTitle;
+      targetNode.shortName = editShortName;
+      targetNode.content = editContent;
+    }
+
+    const newData = { ...data };
     saveData(newData);
     setIsEditing(false);
-    setSelectedNode({ ...selectedNode, title: editTitle, shortName: editShortName, content: editContent });
+    setSelectedNode(targetNode || selectedNode);
   };
 
   const handleDeleteNode = () => {
