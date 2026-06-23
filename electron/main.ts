@@ -75,14 +75,32 @@ app.whenReady().then(() => {
   const memoPath = path.join(userDataPath, 'memo.json');
   const conceptsPath = path.join(userDataPath, 'concepts.json');
 
+  // Safe write utility with atomic rename and backup
+  async function safeWriteFile(filePath: string, data: any) {
+    const tmpPath = filePath + '.tmp';
+    const bakPath = filePath + '.bak';
+    let jsonStr = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+
+    try {
+      await fs.writeFile(tmpPath, jsonStr, 'utf-8');
+      try {
+        await fs.copyFile(filePath, bakPath);
+      } catch (e) { /* Ignore if no original file */ }
+      await fs.rename(tmpPath, filePath);
+    } catch (error) {
+      console.error(`Failed to safely write ${filePath}:`, error);
+      throw error;
+    }
+  }
+
   // Ensure data files exist
   async function ensureDataFiles() {
     try {
-      await fs.access(dataPath).catch(() => fs.writeFile(dataPath, '[]'));
-      await fs.access(papersPath).catch(() => fs.writeFile(papersPath, '[]'));
-      await fs.access(todosPath).catch(() => fs.writeFile(todosPath, '[]'));
-      await fs.access(memoPath).catch(() => fs.writeFile(memoPath, '""'));
-      await fs.access(conceptsPath).catch(() => fs.writeFile(conceptsPath, JSON.stringify({ nodes: [], links: [] })));
+      await fs.access(dataPath).catch(() => safeWriteFile(dataPath, []));
+      await fs.access(papersPath).catch(() => safeWriteFile(papersPath, []));
+      await fs.access(todosPath).catch(() => safeWriteFile(todosPath, []));
+      await fs.access(memoPath).catch(() => safeWriteFile(memoPath, ""));
+      await fs.access(conceptsPath).catch(() => safeWriteFile(conceptsPath, { nodes: [], links: [] }));
     } catch (error) {
       console.error('Error initializing data files:', error);
     }
@@ -93,7 +111,7 @@ app.whenReady().then(() => {
     try {
       await fs.access(dataPath).catch(async () => {
         await fs.mkdir(path.dirname(dataPath), { recursive: true });
-        await fs.writeFile(dataPath, JSON.stringify([], null, 2));
+        await safeWriteFile(dataPath, []);
       });
       const data = await fs.readFile(dataPath, 'utf-8');
       return JSON.parse(data);
@@ -117,7 +135,7 @@ app.whenReady().then(() => {
         progressLogs: [] 
       };
       documents.push(finalDoc);
-      await fs.writeFile(dataPath, JSON.stringify(documents, null, 2));
+      await safeWriteFile(dataPath, documents);
       return documents;
     } catch (error) {
       console.error('Failed to add document:', error);
@@ -139,7 +157,7 @@ app.whenReady().then(() => {
       doc.progressLogs.push(newLog);
       
       documents[docIndex] = doc;
-      await fs.writeFile(dataPath, JSON.stringify(documents, null, 2));
+      await safeWriteFile(dataPath, documents);
       return documents;
     } catch (error) {
       console.error('Failed to add progress log:', error);
@@ -152,7 +170,7 @@ app.whenReady().then(() => {
       const data = await fs.readFile(dataPath, 'utf-8');
       let documents: Document[] = JSON.parse(data);
       documents = documents.filter(d => d.id !== docId);
-      await fs.writeFile(dataPath, JSON.stringify(documents, null, 2));
+      await safeWriteFile(dataPath, documents);
       return documents;
     } catch (error) {
       console.error('Failed to delete document:', error);
@@ -162,7 +180,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('save-documents', async (_event, documents: Document[]) => {
     try {
-      await fs.writeFile(dataPath, JSON.stringify(documents, null, 2));
+      await safeWriteFile(dataPath, documents);
       return documents;
     } catch (error) {
       console.error('Failed to save documents:', error);
@@ -178,7 +196,7 @@ app.whenReady().then(() => {
       
       if (docIndex !== -1) {
         documents[docIndex] = updatedDoc;
-        await fs.writeFile(dataPath, JSON.stringify(documents, null, 2));
+        await safeWriteFile(dataPath, documents);
       }
       return documents;
     } catch (error) {
@@ -203,7 +221,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-papers', async () => {
     try {
       await fs.access(papersPath).catch(async () => {
-        await fs.writeFile(papersPath, JSON.stringify([], null, 2));
+        await safeWriteFile(papersPath, []);
       });
       const data = await fs.readFile(papersPath, 'utf-8');
       return JSON.parse(data);
@@ -215,7 +233,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('save-papers', async (_event, papers) => {
     try {
-      await fs.writeFile(papersPath, JSON.stringify(papers, null, 2));
+      await safeWriteFile(papersPath, papers);
       return papers;
     } catch (error) {
       console.error('Failed to save papers:', error);
@@ -226,7 +244,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-todos', async () => {
     try {
       await fs.access(todosPath).catch(async () => {
-        await fs.writeFile(todosPath, JSON.stringify([], null, 2));
+        await safeWriteFile(todosPath, []);
       });
       const data = await fs.readFile(todosPath, 'utf-8');
       return JSON.parse(data);
@@ -238,7 +256,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('save-todos', async (_event, todos) => {
     try {
-      await fs.writeFile(todosPath, JSON.stringify(todos, null, 2));
+      await safeWriteFile(todosPath, todos);
       return todos;
     } catch (error) {
       console.error('Failed to save todos:', error);
@@ -249,7 +267,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-memo', async () => {
     try {
       await fs.access(memoPath).catch(async () => {
-        await fs.writeFile(memoPath, JSON.stringify("", null, 2));
+        await safeWriteFile(memoPath, "");
       });
       const data = await fs.readFile(memoPath, 'utf-8');
       return JSON.parse(data);
@@ -261,7 +279,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('save-memo', async (_event, memo) => {
     try {
-      await fs.writeFile(memoPath, JSON.stringify(memo, null, 2));
+      await safeWriteFile(memoPath, memo);
       return memo;
     } catch (error) {
       console.error('Failed to save memo:', error);
@@ -281,7 +299,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('save-concepts', async (_event, concepts) => {
     try {
-      await fs.writeFile(conceptsPath, JSON.stringify(concepts, null, 2));
+      await safeWriteFile(conceptsPath, concepts);
       return concepts;
     } catch (error) {
       console.error('Failed to save concepts:', error);
@@ -334,11 +352,11 @@ app.whenReady().then(() => {
       const importContent = await fs.readFile(filePaths[0], 'utf-8');
       const importObj = JSON.parse(importContent);
 
-      if (importObj.data) await fs.writeFile(dataPath, JSON.stringify(importObj.data, null, 2));
-      if (importObj.papers) await fs.writeFile(papersPath, JSON.stringify(importObj.papers, null, 2));
-      if (importObj.todos) await fs.writeFile(todosPath, JSON.stringify(importObj.todos, null, 2));
-      if (importObj.memo !== undefined) await fs.writeFile(memoPath, JSON.stringify(importObj.memo, null, 2));
-      if (importObj.concepts) await fs.writeFile(conceptsPath, JSON.stringify(importObj.concepts, null, 2));
+      if (importObj.data) await safeWriteFile(dataPath, importObj.data);
+      if (importObj.papers) await safeWriteFile(papersPath, importObj.papers);
+      if (importObj.todos) await safeWriteFile(todosPath, importObj.todos);
+      if (importObj.memo !== undefined) await safeWriteFile(memoPath, importObj.memo);
+      if (importObj.concepts) await safeWriteFile(conceptsPath, importObj.concepts);
 
       return true;
     } catch (error) {
