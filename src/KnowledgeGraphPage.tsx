@@ -129,6 +129,7 @@ export default function KnowledgeGraphPage() {
     setLinkTargetId('');
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderNode = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const isSelected = node.id === selectedNode?.id;
     const label = node.shortName || node.title;

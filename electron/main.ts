@@ -76,10 +76,11 @@ app.whenReady().then(() => {
   const conceptsPath = path.join(userDataPath, 'concepts.json');
 
   // Safe write utility with atomic rename and backup
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function safeWriteFile(filePath: string, data: any) {
     const tmpPath = filePath + '.tmp';
     const bakPath = filePath + '.bak';
-    let jsonStr = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    const jsonStr = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
 
     try {
       await fs.writeFile(tmpPath, jsonStr, 'utf-8');
