@@ -44,6 +44,7 @@ export interface Paper {
 export interface ConceptNode {
   id: string;
   title: string;
+  shortName?: string;
   content: string;
   x?: number;
   y?: number;
