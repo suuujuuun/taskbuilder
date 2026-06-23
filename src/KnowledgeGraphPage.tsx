@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
+import ForceGraph2D from 'react-force-graph-2d';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -15,6 +15,7 @@ export default function KnowledgeGraphPage() {
   const [editContent, setEditContent] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
