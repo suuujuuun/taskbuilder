@@ -79,11 +79,13 @@ final class Paper {
     var title: String
     var url: String
     var status: String // "Not Started", "In Progress", "Completed"
+    var tags: [String] = []
     
-    init(title: String, url: String, status: String = "Not Started") {
+    init(title: String, url: String, status: String = "Not Started", tags: [String] = []) {
         self.title = title
         self.url = url
         self.status = status
+        self.tags = tags
     }
 }
 
@@ -96,10 +98,10 @@ final class ConceptNode {
     var x: Double = 0.0
     var y: Double = 0.0
     
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .cascade, inverse: \ConceptLink.source)
     var linksOut: [ConceptLink] = []
     
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .cascade, inverse: \ConceptLink.target)
     var linksIn: [ConceptLink] = []
     
     init(title: String, shortName: String? = nil, content: String) {
@@ -304,6 +306,7 @@ struct BackupPaper: Codable {
     var title: String?
     var url: String?
     var status: String?
+    var tags: [String]?
 }
 
 struct BackupConceptNode: Codable {

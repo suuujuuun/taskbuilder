@@ -13,28 +13,36 @@ struct KnowledgeGraphView: View {
     @State private var searchText = ""
     @State private var isLinkMode = false
     
+    private var validNodes: [ConceptNode] {
+        nodes.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    
+    private var validLinks: [ConceptLink] {
+        links.filter { $0.modelContext != nil && !$0.isDeleted }
+    }
+    
     var body: some View {
         HStack(spacing: 0) {
             ZStack(alignment: .top) {
                 GraphSpriteView(
-                    nodes: nodes,
-                    links: links,
+                    nodes: validNodes,
+                    links: validLinks,
                     searchText: searchText,
                     isLinkMode: isLinkMode,
                     onNodeSelected: { id in
-                        selectedNode = nodes.first(where: { $0.id == id })
+                        selectedNode = validNodes.first(where: { $0.id == id })
                         isEditing = false
                     },
                     onNodeMoved: { id, position in
-                        if let node = nodes.first(where: { $0.id == id }) {
+                        if let node = validNodes.first(where: { $0.id == id }) {
                             node.x = position.x
                             node.y = position.y
                             try? modelContext.save()
                         }
                     },
                     onLinkCreated: { srcId, tgtId in
-                        if let src = nodes.first(where: { $0.id == srcId }),
-                           let tgt = nodes.first(where: { $0.id == tgtId }),
+                        if let src = validNodes.first(where: { $0.id == srcId }),
+                           let tgt = validNodes.first(where: { $0.id == tgtId }),
                            srcId != tgtId {
                             let link = ConceptLink(source: src, target: tgt)
                             modelContext.insert(link)
@@ -133,6 +141,74 @@ struct KnowledgeGraphView: View {
                                     }
                                 }
                                 .padding(.horizontal)
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    if !node.linksOut.isEmpty || !node.linksIn.isEmpty {
+                                        Text("Connections")
+                                            .font(.headline)
+                                            .padding(.top, 16)
+                                            .padding(.bottom, 4)
+                                    }
+                                    
+                                    ForEach(node.linksOut.filter { $0.modelContext != nil && !$0.isDeleted }) { link in
+                                        if let target = link.target, validNodes.contains(where: { $0.persistentModelID == target.persistentModelID }) {
+                                            HStack {
+                                                Button(action: {
+                                                    selectedNode = target
+                                                }) {
+                                                    HStack {
+                                                        Image(systemName: "arrow.right.circle.fill").foregroundColor(.secondary)
+                                                        Text(target.title.isEmpty ? "Untitled Concept" : target.title)
+                                                            .foregroundColor(.primary)
+                                                    }
+                                                }
+                                                .buttonStyle(.plain)
+                                                .onHover { isHovered in
+                                                    if isHovered { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                                                }
+                                                
+                                                Spacer()
+                                                Button(role: .destructive, action: {
+                                                    modelContext.delete(link)
+                                                    try? modelContext.save()
+                                                }) {
+                                                    Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
+                                    ForEach(node.linksIn.filter { $0.modelContext != nil && !$0.isDeleted }) { link in
+                                        if let source = link.source, validNodes.contains(where: { $0.persistentModelID == source.persistentModelID }) {
+                                            HStack {
+                                                Button(action: {
+                                                    selectedNode = source
+                                                }) {
+                                                    HStack {
+                                                        Image(systemName: "arrow.left.circle.fill").foregroundColor(.secondary)
+                                                        Text(source.title.isEmpty ? "Untitled Concept" : source.title)
+                                                            .foregroundColor(.primary)
+                                                    }
+                                                }
+                                                .buttonStyle(.plain)
+                                                .onHover { isHovered in
+                                                    if isHovered { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                                                }
+                                                
+                                                Spacer()
+                                                Button(role: .destructive, action: {
+                                                    modelContext.delete(link)
+                                                    try? modelContext.save()
+                                                }) {
+                                                    Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                                .padding(.bottom, 20)
                             }
                         }
                     }
@@ -175,8 +251,10 @@ struct KnowledgeGraphView: View {
     }
     
     private func deleteAllNodes() {
-        try? modelContext.delete(model: ConceptNode.self)
-        try? modelContext.delete(model: ConceptLink.self)
+        for node in nodes { modelContext.delete(node) }
+        // We no longer manually delete links here because ConceptNode has a cascade delete rule
+        // with explicit inverses. Deleting the links manually after deleting the nodes
+        // causes a SwiftData internal crash due to double-deletion/collection faults.
         try? modelContext.save()
         selectedNode = nil
     }
@@ -224,24 +302,45 @@ class GraphScene: SKScene {
     private var nodeSprites: [UUID: SKNode] = [:]
     private var linkLines: [SKShapeNode] = []
     
-    private var _nodes: [ConceptNode] = []
-    private var _links: [ConceptLink] = []
+    struct LinkData {
+        let sourceId: UUID
+        let targetId: UUID
+    }
+    
+    private var _linksData: [LinkData] = []
     
     private var dragTarget: SKNode?
     private var isLinking: Bool = false
     private var tempLinkLine: SKShapeNode?
     
+    let cameraNode = SKCameraNode()
+    
     override func didMove(to view: SKView) {
         self.backgroundColor = NSColor.black
         self.physicsWorld.gravity = .zero
+        self.camera = cameraNode
+        self.addChild(cameraNode)
     }
     
     func updateData(nodes: [ConceptNode], links: [ConceptLink], searchText: String, isLinkMode: Bool) {
-        self._nodes = nodes
-        self._links = links
+        var validNodeIDs: [PersistentIdentifier: UUID] = [:]
+        for node in nodes {
+            guard node.modelContext != nil, !node.isDeleted else { continue }
+            validNodeIDs[node.persistentModelID] = node.id
+        }
+        
+        self._linksData = links.compactMap { link in
+            guard link.modelContext != nil, !link.isDeleted, 
+                  let src = link.source, let tgt = link.target else { return nil }
+            
+            guard let srcId = validNodeIDs[src.persistentModelID],
+                  let tgtId = validNodeIDs[tgt.persistentModelID] else { return nil }
+                  
+            return LinkData(sourceId: srcId, targetId: tgtId)
+        }
         self.isLinking = isLinkMode
         
-        let newIds = Set(nodes.map { $0.id })
+        let newIds = Set(validNodeIDs.values)
         for (id, sprite) in nodeSprites {
             if !newIds.contains(id) {
                 sprite.removeFromParent()
@@ -250,6 +349,7 @@ class GraphScene: SKScene {
         }
         
         for node in nodes {
+            guard node.modelContext != nil, !node.isDeleted else { continue }
             let isMatch = !searchText.isEmpty && (node.title.localizedCaseInsensitiveContains(searchText) || node.content.localizedCaseInsensitiveContains(searchText))
             let isDimmed = !searchText.isEmpty && !isMatch
             
@@ -299,9 +399,10 @@ class GraphScene: SKScene {
         for line in linkLines { line.removeFromParent() }
         linkLines.removeAll()
         
-        for link in _links {
-            guard let src = link.source, let tgt = link.target,
-                  let n1 = nodeSprites[src.id], let n2 = nodeSprites[tgt.id] else { continue }
+        for linkData in _linksData {
+            let srcId = linkData.sourceId
+            let tgtId = linkData.targetId
+            guard let n1 = nodeSprites[srcId], let n2 = nodeSprites[tgtId] else { continue }
             
             let path = CGMutablePath()
             path.move(to: n1.position)
@@ -323,16 +424,17 @@ class GraphScene: SKScene {
         
         while !queue.isEmpty {
             let current = queue.removeFirst()
-            for link in _links {
-                if let fromId = link.source?.id, let toId = link.target?.id {
-                    if fromId == current && !visited.contains(toId) {
-                        visited.insert(toId)
-                        queue.append(toId)
-                    }
-                    if toId == current && !visited.contains(fromId) {
-                        visited.insert(fromId)
-                        queue.append(fromId)
-                    }
+            for linkData in _linksData {
+                let fromId = linkData.sourceId
+                let toId = linkData.targetId
+                
+                if fromId == current && !visited.contains(toId) {
+                    visited.insert(toId)
+                    queue.append(toId)
+                }
+                if toId == current && !visited.contains(fromId) {
+                    visited.insert(fromId)
+                    queue.append(fromId)
                 }
             }
         }
@@ -407,7 +509,20 @@ class GraphScene: SKScene {
                     }
                 }
             }
+        } else {
+            if let camera = self.camera {
+                camera.position.x -= event.deltaX * camera.xScale
+                camera.position.y += event.deltaY * camera.yScale
+            }
         }
+    }
+    
+    override func scrollWheel(with event: NSEvent) {
+        guard let camera = self.camera else { return }
+        let zoomMultiplier: CGFloat = 1.0 + (event.scrollingDeltaY * -0.01)
+        var newScale = camera.xScale * zoomMultiplier
+        newScale = max(0.2, min(newScale, 5.0))
+        camera.setScale(newScale)
     }
     
     override func mouseUp(with event: NSEvent) {
