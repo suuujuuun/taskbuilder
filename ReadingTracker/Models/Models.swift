@@ -160,8 +160,9 @@ struct BackupData: Codable {
     var conceptNodes: [BackupConceptNode]?
     var conceptLinks: [BackupConceptLink]?
     var memos: [BackupMemo]?
+    var tagOrder: String?
 
-    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil) {
+    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, tagOrder: String? = nil) {
         self.documents = documents
         self.progressLogs = progressLogs
         self.todos = todos
@@ -169,6 +170,7 @@ struct BackupData: Codable {
         self.conceptNodes = conceptNodes
         self.conceptLinks = conceptLinks
         self.memos = memos
+        self.tagOrder = tagOrder
     }
 
     private struct DynamicCodingKeys: CodingKey {
@@ -205,6 +207,10 @@ struct BackupData: Codable {
         conceptLinks = decodeArray(["conceptLinks"])
         memos = decodeArray(["memos", "generalMemos", "notes", "quotes"])
         
+        if let k = DynamicCodingKeys(stringValue: "tagOrder") {
+            tagOrder = try? container.decodeIfPresent(String.self, forKey: k)
+        }
+        
         // Handle 'memo' if it's an array of strings or single string
         if let k = DynamicCodingKeys(stringValue: "memo") {
             if let memoStrs = try? container.decode([String].self, forKey: k) {
@@ -227,6 +233,7 @@ struct BackupData: Codable {
         if let k = DynamicCodingKeys(stringValue: "conceptNodes") { try container.encodeIfPresent(conceptNodes, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "conceptLinks") { try container.encodeIfPresent(conceptLinks, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "memos") { try container.encodeIfPresent(memos, forKey: k) }
+        if let k = DynamicCodingKeys(stringValue: "tagOrder") { try container.encodeIfPresent(tagOrder, forKey: k) }
     }
 }
 

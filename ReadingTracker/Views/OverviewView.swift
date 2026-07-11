@@ -7,15 +7,22 @@ struct OverviewView: View {
     
     @State private var draggedItem: Document?
     @State private var selectedTag: String? = nil
+    @AppStorage("tagOrder") private var tagOrderString: String = ""
+    @State private var showingTagReorder = false
+    @State private var editOrderTags: [String] = []
+    @State private var selectedDocumentForEditing: Document?
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 30) {
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 30) {
+                let filteredDocs = documents.filter { selectedTag == nil || $0.tags.contains(selectedTag!) }
+                
                 // Statistics
-                let totalBooks = documents.count
-                let totalPages = documents.reduce(0) { $0 + $1.totalPages }
-                let totalRead = documents.reduce(0) { sum, doc in
-                    let lastPage = doc.progressLogs.sorted { $0.date < $1.date }.last?.page ?? 0
+                let totalBooks = filteredDocs.count
+                let totalPages = filteredDocs.reduce(0) { $0 + $1.totalPages }
+                let totalRead = filteredDocs.reduce(0) { sum, doc in
+                    let lastPage = doc.progressLogs.max(by: { $0.date < $1.date })?.page ?? 0
                     return sum + lastPage
                 }
                 let overallProgress = totalPages > 0 ? Int((totalRead / totalPages) * 100) : 0
@@ -26,12 +33,43 @@ struct OverviewView: View {
                     StatCard(title: "GLOBAL PROGRESS", value: "\(overallProgress)%", color: .primary)
                 }
                 
-                let allTags = Array(Set(documents.flatMap { $0.tags })).sorted()
+                let existingTags = Array(Set(documents.flatMap { $0.tags }))
+                let orderedTags = tagOrderString.components(separatedBy: ",").filter { !$0.isEmpty }
+                let allTags = orderedTags.filter { existingTags.contains($0) } + existingTags.filter { !orderedTags.contains($0) }.sorted()
                 
                 HStack {
                     Text("Library Overview")
                         .font(.title)
                         .bold()
+                    
+                    Button(action: {
+                        editOrderTags = allTags
+                        showingTagReorder = true
+                    }) {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showingTagReorder) {
+                        VStack(spacing: 10) {
+                            Text("Reorder Tags").font(.headline)
+                            List {
+                                ForEach(editOrderTags, id: \.self) { tag in
+                                    Text(tag)
+                                }
+                                .onMove { from, to in
+                                    editOrderTags.move(fromOffsets: from, toOffset: to)
+                                }
+                            }
+                            Button("Save") {
+                                tagOrderString = editOrderTags.joined(separator: ",")
+                                showingTagReorder = false
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding()
+                        .frame(width: 200, height: 250)
+                    }
                     
                     Spacer()
                     
@@ -56,11 +94,12 @@ struct OverviewView: View {
                     }
                 }
                 
-                let filteredDocs = documents.filter { selectedTag == nil || $0.tags.contains(selectedTag!) }
-                
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 20)], spacing: 20) {
                     ForEach(filteredDocs) { doc in
                         DocumentCard(document: doc)
+                            .onTapGesture {
+                                selectedDocumentForEditing = doc
+                            }
                             .onDrag {
                                 self.draggedItem = doc
                                 return NSItemProvider(object: doc.id.uuidString as NSString)
@@ -69,7 +108,22 @@ struct OverviewView: View {
                     }
                 }
             }
+            }
             .padding(30)
+            
+            if let editingDoc = selectedDocumentForEditing {
+                Color.black.opacity(0.6)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        selectedDocumentForEditing = nil
+                    }
+                
+                DocumentDetailView(document: editingDoc)
+                    .frame(width: 800, height: 550)
+                    .background(Color(NSColor.windowBackgroundColor))
+                    .cornerRadius(12)
+                    .shadow(radius: 20)
+            }
         }
     }
 }
@@ -149,23 +203,25 @@ struct DocumentCard: View {
                     .bold(isOverdue || isNearDeadline)
                     .foregroundColor(deadlineColor)
                 
-                DatePicker("", selection: Binding(
-                    get: { document.targetDate },
-                    set: { newValue in
-                        document.targetDate = newValue
-                        if let context = document.modelContext {
-                            try? context.save()
-                        }
-                    }
-                ), displayedComponents: .date)
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .tint(deadlineColor)
+                Text(document.targetDate, format: .dateTime.month().day().year())
+                    .font(.subheadline)
+                    .foregroundColor(deadlineColor)
             }
             
-            let lastLog = document.progressLogs.sorted { $0.date < $1.date }.last
+            let lastLog = document.progressLogs.max(by: { $0.date < $1.date })
             let currentPage = lastLog?.page ?? 0
             let percentage = document.totalPages > 0 ? Int((currentPage / document.totalPages) * 100) : 0
+            
+            if let lastTopic = lastLog?.topic, !lastTopic.isEmpty {
+                HStack(alignment: .top) {
+                    Image(systemName: "book")
+                        .foregroundColor(.secondary)
+                    Text(lastTopic)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
             
             ProgressView(value: Double(percentage), total: 100)
                 .progressViewStyle(.linear)
@@ -232,3 +288,4 @@ struct DocumentDropDelegate: DropDelegate {
         }
     }
 }
+

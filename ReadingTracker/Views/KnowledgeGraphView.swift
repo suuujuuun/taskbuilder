@@ -251,10 +251,10 @@ struct KnowledgeGraphView: View {
     }
     
     private func deleteAllNodes() {
-        for node in nodes { modelContext.delete(node) }
-        // We no longer manually delete links here because ConceptNode has a cascade delete rule
-        // with explicit inverses. Deleting the links manually after deleting the nodes
-        // causes a SwiftData internal crash due to double-deletion/collection faults.
+        // Use SwiftData's batch delete to avoid relationship fault crashes
+        // that occur when iterating and deleting heavily interconnected nodes.
+        try? modelContext.delete(model: ConceptLink.self)
+        try? modelContext.delete(model: ConceptNode.self)
         try? modelContext.save()
         selectedNode = nil
     }

@@ -13,6 +13,8 @@ struct ContentView: View {
     @Query private var conceptLinks: [ConceptLink]
     @Query private var memos: [GeneralMemo]
     
+    @AppStorage("tagOrder") private var tagOrderString: String = ""
+    
     @State private var showingAlert = false
     @State private var alertMessage = ""
     
@@ -83,10 +85,11 @@ struct ContentView: View {
             documents: documents.map { BackupDocument(id: FlexibleID(uuid: $0.id), title: $0.title, totalPages: $0.totalPages, targetDate: $0.targetDate, difficulty: $0.difficulty, link: $0.link, orderIndex: $0.orderIndex, progressLogs: $0.progressLogs.map { BackupProgressLog(id: FlexibleID(uuid: $0.id), date: $0.date, page: $0.page, topic: $0.topic, satisfaction: $0.satisfaction) }, tags: $0.tags) },
             progressLogs: progressLogs.map { BackupProgressLog(id: FlexibleID(uuid: $0.id), date: $0.date, page: $0.page, topic: $0.topic, satisfaction: $0.satisfaction, documentId: $0.document.map { FlexibleID(uuid: $0.id) }) },
             todos: todos.map { BackupTodo(id: FlexibleID(uuid: $0.id), text: $0.text, completed: $0.completed, status: $0.status) },
-            papers: papers.map { BackupPaper(id: FlexibleID(uuid: $0.id), title: $0.title, url: $0.url, status: $0.status) },
+            papers: papers.map { BackupPaper(id: FlexibleID(uuid: $0.id), title: $0.title, url: $0.url, status: $0.status, tags: $0.tags) },
             conceptNodes: conceptNodes.map { BackupConceptNode(id: FlexibleID(uuid: $0.id), title: $0.title, shortName: $0.shortName, content: $0.content, x: $0.x, y: $0.y) },
             conceptLinks: conceptLinks.map { BackupConceptLink(id: FlexibleID(uuid: $0.id), sourceId: FlexibleID(uuid: $0.source?.id ?? UUID()), targetId: FlexibleID(uuid: $0.target?.id ?? UUID())) },
-            memos: memos.map { BackupMemo(id: FlexibleID(uuid: $0.id), text: $0.text, tabIndex: $0.tabIndex, tabName: $0.tabName) }
+            memos: memos.map { BackupMemo(id: FlexibleID(uuid: $0.id), text: $0.text, tabIndex: $0.tabIndex, tabName: $0.tabName) },
+            tagOrder: tagOrderString
         )
         
         let encoder = JSONEncoder()
@@ -171,6 +174,10 @@ struct ContentView: View {
                 }
                 
                 let backup = try decoder.decode(BackupData.self, from: data)
+                
+                if let tagOrder = backup.tagOrder {
+                    tagOrderString = tagOrder
+                }
                 
                 // Maps for existing data
                 var existingDocs = [UUID: Document]()
@@ -279,8 +286,9 @@ struct ContentView: View {
                         existing.title = b.title ?? "Untitled"
                         existing.url = b.url ?? ""
                         existing.status = b.status ?? "Not Started"
+                        existing.tags = b.tags ?? []
                     } else {
-                        let paper = Paper(title: b.title ?? "Untitled", url: b.url ?? "", status: b.status ?? "Not Started")
+                        let paper = Paper(title: b.title ?? "Untitled", url: b.url ?? "", status: b.status ?? "Not Started", tags: b.tags ?? [])
                         paper.id = uuid
                         modelContext.insert(paper)
                     }
