@@ -7,6 +7,16 @@ struct PlanningView: View {
     @Query private var memos: [GeneralMemo]
     
     @State private var newTodoText = ""
+    @State private var selectedTab = "All"
+    let tabs = ["All", "General", "Work", "Study", "Personal"]
+    
+    var filteredTodos: [Todo] {
+        if selectedTab == "All" {
+            return todos
+        } else {
+            return todos.filter { $0.status == selectedTab }
+        }
+    }
     
     var body: some View {
         HSplitView {
@@ -22,10 +32,19 @@ struct PlanningView: View {
                     Button(action: addTodo) { Image(systemName: "plus") }
                         .disabled(newTodoText.isEmpty)
                 }
-                .padding()
+                .padding([.horizontal, .top])
+                
+                Picker("Category", selection: $selectedTab) {
+                    ForEach(tabs, id: \.self) { tab in
+                        Text(tab).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
                 
                 List {
-                    ForEach(todos) { todo in
+                    ForEach(filteredTodos) { todo in
                         HStack {
                             Toggle("", isOn: Binding(
                                 get: { todo.completed },
@@ -73,7 +92,8 @@ struct PlanningView: View {
     
     private func addTodo() {
         guard !newTodoText.isEmpty else { return }
-        let todo = Todo(text: newTodoText, status: "Todo")
+        let currentStatus = selectedTab == "All" ? "General" : selectedTab
+        let todo = Todo(text: newTodoText, status: currentStatus)
         modelContext.insert(todo)
         try? modelContext.save()
         newTodoText = ""
@@ -82,7 +102,7 @@ struct PlanningView: View {
     private func deleteTodos(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                modelContext.delete(todos[index])
+                modelContext.delete(filteredTodos[index])
             }
             try? modelContext.save()
         }
@@ -129,7 +149,6 @@ struct MemoEditorView: View {
                             selectedTab = index
                             loadMemo(for: index)
                         }
-                    }
                     }
                     
                     Button(action: {

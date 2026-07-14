@@ -97,6 +97,7 @@ final class ConceptNode {
     var content: String
     var x: Double = 0.0
     var y: Double = 0.0
+    var tags: [String] = []
     
     @Relationship(deleteRule: .cascade, inverse: \ConceptLink.source)
     var linksOut: [ConceptLink] = []
@@ -104,10 +105,11 @@ final class ConceptNode {
     @Relationship(deleteRule: .cascade, inverse: \ConceptLink.target)
     var linksIn: [ConceptLink] = []
     
-    init(title: String, shortName: String? = nil, content: String) {
+    init(title: String, shortName: String? = nil, content: String, tags: [String] = []) {
         self.title = title
         self.shortName = shortName
         self.content = content
+        self.tags = tags
     }
 }
 
@@ -323,6 +325,7 @@ struct BackupConceptNode: Codable {
     var content: String?
     var x: Double?
     var y: Double?
+    var tags: [String]?
 }
 
 struct BackupConceptLink: Codable {

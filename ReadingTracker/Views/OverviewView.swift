@@ -6,7 +6,11 @@ struct OverviewView: View {
     @Query(sort: \Document.orderIndex) private var documents: [Document]
     
     @State private var draggedItem: Document?
-    @State private var selectedTag: String? = nil
+    @AppStorage("lastSelectedOverviewTag") private var lastSelectedTag: String = ""
+    private var selectedTag: String? {
+        get { lastSelectedTag.isEmpty ? nil : lastSelectedTag }
+        set { lastSelectedTag = newValue ?? "" }
+    }
     @AppStorage("tagOrder") private var tagOrderString: String = ""
     @State private var showingTagReorder = false
     @State private var editOrderTags: [String] = []
@@ -76,7 +80,7 @@ struct OverviewView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
                             Button("All") {
-                                selectedTag = nil
+                                lastSelectedTag = ""
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(selectedTag == nil ? .primary : Color(NSColor.controlBackgroundColor))
@@ -84,7 +88,7 @@ struct OverviewView: View {
                             
                             ForEach(allTags, id: \.self) { tag in
                                 Button(tag) {
-                                    selectedTag = tag
+                                    lastSelectedTag = tag
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .tint(selectedTag == tag ? .primary : Color(NSColor.controlBackgroundColor))

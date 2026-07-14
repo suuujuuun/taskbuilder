@@ -91,9 +91,13 @@ struct DocumentDetailView: View {
                     VStack(alignment: .leading) {
                         Text("Difficulty: \(document.difficulty.map { "\($0)/5" } ?? "N/A")")
                             .foregroundColor(.secondary)
-                        Text(document.title)
-                            .font(.largeTitle)
-                            .bold()
+                        TextField("Title", text: Binding(get: { document.title }, set: { 
+                            document.title = $0
+                            try? modelContext.save()
+                        }))
+                        .font(.largeTitle)
+                        .bold()
+                        .textFieldStyle(.plain)
                     }
                     Spacer()
                     VStack(alignment: .trailing) {

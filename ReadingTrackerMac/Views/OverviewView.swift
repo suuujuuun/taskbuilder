@@ -6,6 +6,7 @@ struct OverviewView: View {
     @Query(sort: \Document.orderIndex) private var documents: [Document]
     
     @State private var draggedItem: Document?
+    @State private var selectedDocumentForEditing: Document?
     
     var body: some View {
         ScrollView {
@@ -32,6 +33,9 @@ struct OverviewView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 20)], spacing: 20) {
                     ForEach(documents) { doc in
                         DocumentCard(document: doc)
+                            .onTapGesture {
+                                selectedDocumentForEditing = doc
+                            }
                             .onDrag {
                                 self.draggedItem = doc
                                 return NSItemProvider(object: doc.id.uuidString as NSString)
@@ -41,6 +45,34 @@ struct OverviewView: View {
                 }
             }
             .padding(30)
+        }
+        .overlay {
+            if let doc = selectedDocumentForEditing {
+                ZStack {
+                    Color.black.opacity(0.6)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            selectedDocumentForEditing = nil
+                        }
+                    
+                    DocumentDetailView(document: doc)
+                        .frame(width: 700, height: 600)
+                        .background(Color(NSColor.windowBackgroundColor))
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
+                        .overlay(alignment: .topTrailing) {
+                            Button {
+                                selectedDocumentForEditing = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title)
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .padding()
+                        }
+                }
+            }
         }
     }
 }
@@ -94,6 +126,26 @@ struct DocumentCard: View {
             let lastLog = document.progressLogs.sorted { $0.date < $1.date }.last
             let currentPage = lastLog?.page ?? 0
             let percentage = document.totalPages > 0 ? Int((Double(currentPage) / Double(document.totalPages)) * 100) : 0
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "calendar")
+                    Text("Due: \(document.targetDate, format: .dateTime.year().month().day())")
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+                
+                if let topic = lastLog?.topic, !topic.isEmpty {
+                    HStack {
+                        Image(systemName: "text.book.closed")
+                        Text("Topic: \(topic)")
+                            .lineLimit(1)
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
+            }
+            .padding(.bottom, 4)
             
             ProgressView(value: Double(percentage), total: 100)
                 .progressViewStyle(.linear)

@@ -28,7 +28,11 @@ struct DetailsView: View {
             }
         } detail: {
             if let doc = selectedDocument {
-                DocumentDetailView(document: doc)
+                DocumentDetailView(document: doc, onDelete: {
+                    modelContext.delete(doc)
+                    try? modelContext.save()
+                    selectedDocument = nil
+                })
             } else {
                 VStack(spacing: 16) {
                     Text("“Books are a uniquely portable magic.”")
@@ -58,7 +62,7 @@ struct DetailsView: View {
     }
     
     private func calculateProgress(for doc: Document) -> Double {
-        let lastLog = doc.progressLogs.sorted { $0.date < $1.date }.last
+        let lastLog = doc.progressLogs.max(by: { $0.date < $1.date })
         let currentPage = lastLog?.page ?? 0
         return doc.totalPages > 0 ? currentPage / doc.totalPages : 0
     }
@@ -89,7 +93,7 @@ struct DocumentRowView: View {
                     .foregroundColor(deadlineColor)
             }
             
-            let lastLog = doc.progressLogs.sorted { $0.date < $1.date }.last
+            let lastLog = doc.progressLogs.max(by: { $0.date < $1.date })
             let currentPage = lastLog?.page ?? 0
             let progress = doc.totalPages > 0 ? currentPage / doc.totalPages : 0
             
@@ -104,6 +108,7 @@ struct DocumentRowView: View {
 struct DocumentDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var document: Document
+    var onDelete: (() -> Void)? = nil
     
     @State private var newPage: String = ""
     @State private var newTopic: String = ""
@@ -121,10 +126,17 @@ struct DocumentDetailView: View {
                     VStack(alignment: .leading) {
                         Text("Difficulty: \(document.difficulty.map { "\($0)/5" } ?? "N/A")")
                             .foregroundColor(.secondary)
-                        Text(document.title)
+                        TextField("Title", text: Binding(
+                            get: { document.title },
+                            set: { newValue in
+                                document.title = newValue
+                                try? modelContext.save()
+                            }
+                        ))
                             .font(.largeTitle)
                             .bold()
                             .foregroundColor((isOverdue || isNearDeadline) ? deadlineColor : .primary)
+                            .textFieldStyle(.plain)
                         
                         if isOverdue {
                             Text("Overdue by \(-daysRemaining) days")
@@ -182,13 +194,27 @@ struct DocumentDetailView: View {
                     }
                 }
                 
-                let lastLog = document.progressLogs.sorted { $0.date < $1.date }.last
+                let lastLog = document.progressLogs.max(by: { $0.date < $1.date })
                 let currentPage = lastLog?.page ?? 0
                 let remaining = document.totalPages - currentPage
                 let percentage = document.totalPages > 0 ? Int((currentPage / document.totalPages) * 100) : 0
                 
-                Text("\(document.totalPages.formatted()) pages total | **\(remaining.formatted()) pages remaining (\(percentage)%)**")
-                    .foregroundColor(.secondary)
+                HStack {
+                    Text("Total Pages:")
+                        .foregroundColor(.secondary)
+                    TextField("Total", value: Binding(
+                        get: { document.totalPages },
+                        set: { newValue in
+                            document.totalPages = newValue
+                            try? modelContext.save()
+                        }
+                    ), format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 80)
+                    
+                    Text("| **\(remaining.formatted()) pages remaining (\(percentage)%)**")
+                        .foregroundColor(.secondary)
+                }
                 
                 Divider()
                 
@@ -237,30 +263,24 @@ struct DocumentDetailView: View {
                 }
                 
                 ForEach(document.progressLogs.sorted { $0.date > $1.date }) { log in
-                    GroupBox {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("Page \(log.page.formatted())")
-                                    .font(.headline)
-                                Text(log.topic.isEmpty ? "No topic" : log.topic)
-                                    .foregroundColor(.secondary)
-                                if let sat = log.satisfaction {
-                                    Text("Satisfaction: \(sat)/5")
-                                        .font(.caption)
-                                }
-                            }
-                            Spacer()
-                            Text(log.date, format: .dateTime)
-                                .foregroundColor(.secondary)
-                        }
-                    }
+                    ProgressLogRowView(log: log, document: document)
                 }
             }
             .padding()
         }
         .onAppear {
-            if let last = document.progressLogs.sorted(by: { $0.date < $1.date }).last {
+            if let last = document.progressLogs.max(by: { $0.date < $1.date }) {
                 newPage = String(format: "%g", last.page)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .destructive, action: {
+                    onDelete?()
+                }) {
+                    Label("Delete Document", systemImage: "trash")
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }
@@ -329,5 +349,100 @@ struct AddDocumentView: View {
         modelContext.insert(doc)
         try? modelContext.save()
         dismiss()
+    }
+}
+
+struct ProgressLogRowView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var log: ProgressLog
+    let document: Document
+    
+    @State private var isEditing = false
+    @State private var editPage: String = ""
+    @State private var editTopic: String = ""
+    @State private var editSatisfaction: String = ""
+    
+    var body: some View {
+        GroupBox {
+            if isEditing {
+                VStack(alignment: .trailing, spacing: 10) {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("Page").font(.caption)
+                            TextField("Page", text: $editPage)
+                        }
+                        VStack(alignment: .leading) {
+                            Text("Topic").font(.caption)
+                            TextField("Topic", text: $editTopic)
+                        }
+                        VStack(alignment: .leading) {
+                            Text("Satisfaction").font(.caption)
+                            TextField("1-5", text: $editSatisfaction)
+                        }
+                    }
+                    HStack {
+                        Button("Cancel") { isEditing = false }
+                        Button("Save") {
+                            if let p = Double(editPage) {
+                                log.page = p
+                            }
+                            log.topic = editTopic
+                            if let s = Int(editSatisfaction) {
+                                log.satisfaction = s
+                            } else if editSatisfaction.isEmpty {
+                                log.satisfaction = nil
+                            }
+                            try? modelContext.save()
+                            isEditing = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.primary)
+                    }
+                }
+            } else {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Page \(log.page.formatted())")
+                            .font(.headline)
+                        Text(log.topic.isEmpty ? "No topic" : log.topic)
+                            .foregroundColor(.secondary)
+                        if let sat = log.satisfaction {
+                            Text("Satisfaction: \(sat)/5")
+                                .font(.caption)
+                        }
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 8) {
+                        Text(log.date, format: .dateTime)
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                        HStack {
+                            Button(action: {
+                                editPage = String(format: "%g", log.page)
+                                editTopic = log.topic
+                                editSatisfaction = log.satisfaction.map { String($0) } ?? ""
+                                isEditing = true
+                            }) {
+                                Image(systemName: "pencil")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.secondary)
+                            
+                            Button(action: {
+                                if let index = document.progressLogs.firstIndex(of: log) {
+                                    document.progressLogs.remove(at: index)
+                                }
+                                modelContext.delete(log)
+                                try? modelContext.save()
+                            }) {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

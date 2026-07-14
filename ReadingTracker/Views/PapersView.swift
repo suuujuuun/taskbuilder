@@ -7,6 +7,7 @@ struct PapersView: View {
     @Query private var papers: [Paper]
     
     @State private var showingAddModal = false
+    @State private var selectedTag: String? = nil
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -19,10 +20,36 @@ struct PapersView: View {
             }
             .padding()
             
+            let allTags = Array(Set(papers.flatMap { $0.tags })).sorted()
+            if !allTags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        Button("All") {
+                            selectedTag = nil
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(selectedTag == nil ? .primary : Color(NSColor.controlBackgroundColor))
+                        .foregroundColor(selectedTag == nil ? Color(NSColor.windowBackgroundColor) : .primary)
+                        
+                        ForEach(allTags, id: \.self) { tag in
+                            Button(tag) {
+                                selectedTag = tag
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(selectedTag == tag ? .primary : Color(NSColor.controlBackgroundColor))
+                            .foregroundColor(selectedTag == tag ? Color(NSColor.windowBackgroundColor) : .primary)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+            
+            let filteredPapers = papers.filter { selectedTag == nil || $0.tags.contains(selectedTag!) }
+            
             HStack(alignment: .top, spacing: 20) {
-                PaperKanbanColumn(title: "Not Started", status: "Not Started", papers: papers)
-                PaperKanbanColumn(title: "In Progress", status: "In Progress", papers: papers)
-                PaperKanbanColumn(title: "Completed", status: "Completed", papers: papers)
+                PaperKanbanColumn(title: "Not Started", status: "Not Started", papers: filteredPapers)
+                PaperKanbanColumn(title: "In Progress", status: "In Progress", papers: filteredPapers)
+                PaperKanbanColumn(title: "Completed", status: "Completed", papers: filteredPapers)
             }
             .padding(.horizontal)
         }
@@ -83,6 +110,7 @@ struct PaperKanbanColumn: View {
 struct PaperKanbanCard: View {
     @Bindable var paper: Paper
     @Environment(\.modelContext) private var modelContext
+    @State private var showingEditTags = false
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -113,6 +141,22 @@ struct PaperKanbanCard: View {
                 }
             }
             
+            
+            if !paper.tags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(paper.tags, id: \.self) { tag in
+                            Text(tag)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.2))
+                                .cornerRadius(4)
+                        }
+                    }
+                }
+            }
+            
             HStack {
                 Spacer()
                 Menu {
@@ -120,12 +164,30 @@ struct PaperKanbanCard: View {
                     Button("In Progress") { updateStatus("In Progress") }
                     Button("Completed") { updateStatus("Completed") }
                     Divider()
+                    Button("Edit Tags") { showingEditTags = true }
                     Button("Delete", role: .destructive) { deletePaper() }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 20)
+                .popover(isPresented: $showingEditTags) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Edit Tags")
+                            .font(.headline)
+                        TextField("Tags (comma separated)", text: Binding(
+                            get: { paper.tags.joined(separator: ", ") },
+                            set: { newValue in
+                                let tags = newValue.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                                paper.tags = tags
+                                try? modelContext.save()
+                            }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 250)
+                    }
+                    .padding()
+                }
             }
         }
         .padding()
@@ -155,12 +217,14 @@ struct AddPaperView: View {
     
     @State private var title = ""
     @State private var url = ""
+    @State private var tags = ""
     
     var body: some View {
         NavigationStack {
             Form {
                 TextField("Paper Title", text: $title)
                 TextField("URL", text: $url)
+                TextField("Tags (comma separated)", text: $tags)
             }
             .padding()
             .navigationTitle("Add Paper")
@@ -170,7 +234,8 @@ struct AddPaperView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let paper = Paper(title: title, url: url)
+                        let tagArray = tags.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                        let paper = Paper(title: title, url: url, tags: tagArray)
                         modelContext.insert(paper)
                         try? modelContext.save()
                         dismiss()

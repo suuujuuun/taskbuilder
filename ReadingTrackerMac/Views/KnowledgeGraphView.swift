@@ -133,6 +133,50 @@ struct KnowledgeGraphView: View {
                                     }
                                 }
                                 .padding(.horizontal)
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    if !node.linksOut.isEmpty || !node.linksIn.isEmpty {
+                                        Text("Connections")
+                                            .font(.headline)
+                                            .padding(.top, 16)
+                                            .padding(.bottom, 4)
+                                    }
+                                    
+                                    ForEach(node.linksOut.filter { $0.modelContext != nil && !$0.isDeleted }) { link in
+                                        if let target = link.target, target.modelContext != nil, !target.isDeleted {
+                                            HStack {
+                                                Image(systemName: "arrow.right.circle.fill").foregroundColor(.secondary)
+                                                Text(target.title.isEmpty ? "Untitled Concept" : target.title)
+                                                Spacer()
+                                                Button(role: .destructive, action: {
+                                                    modelContext.delete(link)
+                                                    try? modelContext.save()
+                                                }) {
+                                                    Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
+                                    ForEach(node.linksIn.filter { $0.modelContext != nil && !$0.isDeleted }) { link in
+                                        if let source = link.source, source.modelContext != nil, !source.isDeleted {
+                                            HStack {
+                                                Image(systemName: "arrow.left.circle.fill").foregroundColor(.secondary)
+                                                Text(source.title.isEmpty ? "Untitled Concept" : source.title)
+                                                Spacer()
+                                                Button(role: .destructive, action: {
+                                                    modelContext.delete(link)
+                                                    try? modelContext.save()
+                                                }) {
+                                                    Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                                .padding(.bottom, 20)
                             }
                         }
                     }
@@ -179,14 +223,27 @@ struct KnowledgeGraphView: View {
     }
     
     private func deleteAllNodes() {
-        try? modelContext.delete(model: ConceptNode.self)
-        try? modelContext.delete(model: ConceptLink.self)
+        for node in nodes { modelContext.delete(node) }
+        for link in links { modelContext.delete(link) }
         try? modelContext.save()
         selectedNode = nil
     }
 }
 
 // MARK: - SpriteKit Integration
+
+struct GraphNodeData {
+    let id: UUID
+    let title: String
+    let content: String
+    var x: Double
+    var y: Double
+}
+
+struct GraphLinkData {
+    let sourceId: UUID
+    let targetId: UUID
+}
 
 struct GraphSpriteView: NSViewRepresentable {
     var nodes: [ConceptNode]
@@ -207,14 +264,31 @@ struct GraphSpriteView: NSViewRepresentable {
         scene.onLinkCreated = onLinkCreated
         view.presentScene(scene)
         
-        scene.updateData(nodes: nodes, links: links, searchText: searchText, isLinkMode: isLinkMode)
+        updateSceneData(scene)
         return view
     }
     
     func updateNSView(_ nsView: SKView, context: Context) {
         if let scene = nsView.scene as? GraphScene {
-            scene.updateData(nodes: nodes, links: links, searchText: searchText, isLinkMode: isLinkMode)
+            updateSceneData(scene)
         }
+    }
+    
+    private func updateSceneData(_ scene: GraphScene) {
+        let nodeData = nodes.compactMap { node -> GraphNodeData? in
+            guard node.modelContext != nil, !node.isDeleted else { return nil }
+            return GraphNodeData(id: node.id, title: node.title, content: node.content, x: node.x, y: node.y)
+        }
+        
+        let linkData = links.compactMap { link -> GraphLinkData? in
+            guard link.modelContext != nil, !link.isDeleted else { return nil }
+            guard let src = link.source, src.modelContext != nil, !src.isDeleted else { return nil }
+            guard let tgt = link.target, tgt.modelContext != nil, !tgt.isDeleted else { return nil }
+            
+            return GraphLinkData(sourceId: src.id, targetId: tgt.id)
+        }
+        
+        scene.updateData(nodes: nodeData, links: linkData, searchText: searchText, isLinkMode: isLinkMode)
     }
 }
 
@@ -228,19 +302,23 @@ class GraphScene: SKScene {
     private var nodeSprites: [UUID: SKNode] = [:]
     private var linkLines: [SKShapeNode] = []
     
-    private var _nodes: [ConceptNode] = []
-    private var _links: [ConceptLink] = []
+    private var _nodes: [GraphNodeData] = []
+    private var _links: [GraphLinkData] = []
     
     private var dragTarget: SKNode?
     private var isLinking: Bool = false
     private var tempLinkLine: SKShapeNode?
     
+    let cameraNode = SKCameraNode()
+    
     override func didMove(to view: SKView) {
         self.backgroundColor = NSColor.black
         self.physicsWorld.gravity = .zero
+        self.camera = cameraNode
+        self.addChild(cameraNode)
     }
     
-    func updateData(nodes: [ConceptNode], links: [ConceptLink], searchText: String, isLinkMode: Bool) {
+    func updateData(nodes: [GraphNodeData], links: [GraphLinkData], searchText: String, isLinkMode: Bool) {
         self._nodes = nodes
         self._links = links
         self.isLinking = isLinkMode
@@ -304,8 +382,7 @@ class GraphScene: SKScene {
         linkLines.removeAll()
         
         for link in _links {
-            guard let src = link.source, let tgt = link.target,
-                  let n1 = nodeSprites[src.id], let n2 = nodeSprites[tgt.id] else { continue }
+            guard let n1 = nodeSprites[link.sourceId], let n2 = nodeSprites[link.targetId] else { continue }
             
             let path = CGMutablePath()
             path.move(to: n1.position)
@@ -328,15 +405,15 @@ class GraphScene: SKScene {
         while !queue.isEmpty {
             let current = queue.removeFirst()
             for link in _links {
-                if let fromId = link.source?.id, let toId = link.target?.id {
-                    if fromId == current && !visited.contains(toId) {
-                        visited.insert(toId)
-                        queue.append(toId)
-                    }
-                    if toId == current && !visited.contains(fromId) {
-                        visited.insert(fromId)
-                        queue.append(fromId)
-                    }
+                let fromId = link.sourceId
+                let toId = link.targetId
+                if fromId == current && !visited.contains(toId) {
+                    visited.insert(toId)
+                    queue.append(toId)
+                }
+                if toId == current && !visited.contains(fromId) {
+                    visited.insert(fromId)
+                    queue.append(fromId)
                 }
             }
         }
@@ -411,7 +488,20 @@ class GraphScene: SKScene {
                     }
                 }
             }
+        } else {
+            if let camera = self.camera {
+                camera.position.x -= event.deltaX * camera.xScale
+                camera.position.y += event.deltaY * camera.yScale
+            }
         }
+    }
+    
+    override func scrollWheel(with event: NSEvent) {
+        guard let camera = self.camera else { return }
+        let zoomMultiplier: CGFloat = 1.0 + (event.scrollingDeltaY * -0.01)
+        var newScale = camera.xScale * zoomMultiplier
+        newScale = max(0.2, min(newScale, 5.0))
+        camera.setScale(newScale)
     }
     
     override func mouseUp(with event: NSEvent) {

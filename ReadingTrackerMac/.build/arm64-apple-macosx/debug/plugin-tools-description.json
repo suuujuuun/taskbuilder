@@ -24,15 +24,15 @@
       "inputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ContentView.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Models/Models.swift"
         },
         {
           "kind" : "file",
           "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ReadingTrackerApp.swift"
-        },
-        {
-          "kind" : "file",
-          "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/ContentView.swift"
         },
         {
           "kind" : "file",
@@ -67,9 +67,9 @@
       "moduleName" : "ReadingTrackerMac",
       "moduleOutputPath" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/Modules/ReadingTrackerMac.swiftmodule",
       "objects" : [
+        "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.swift.o",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/Models.swift.o",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ReadingTrackerApp.swift.o",
-        "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.swift.o",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/DetailsView.swift.o",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/KnowledgeGraphView.swift.o",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/OverviewView.swift.o",
@@ -130,15 +130,15 @@
       "outputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/Models.swift.o"
         },
         {
           "kind" : "file",
           "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ReadingTrackerApp.swift.o"
-        },
-        {
-          "kind" : "file",
-          "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.swift.o"
         },
         {
           "kind" : "file",
@@ -167,9 +167,9 @@
       ],
       "prepareForIndexing" : false,
       "sources" : [
+        "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ContentView.swift",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Models/Models.swift",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ReadingTrackerApp.swift",
-        "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/ContentView.swift",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/DetailsView.swift",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/KnowledgeGraphView.swift",
         "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/OverviewView.swift",
@@ -192,9 +192,9 @@
       "readingtrackermac",
       "-incremental",
       "-c",
+      "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ContentView.swift",
       "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Models/Models.swift",
       "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ReadingTrackerApp.swift",
-      "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/ContentView.swift",
       "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/DetailsView.swift",
       "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/KnowledgeGraphView.swift",
       "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/OverviewView.swift",
@@ -292,15 +292,15 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ContentView.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Models/Models.swift"
         },
         {
           "kind" : "file",
           "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ReadingTrackerApp.swift"
-        },
-        {
-          "kind" : "file",
-          "name" : "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/ContentView.swift"
         },
         {
           "kind" : "file",

@@ -2,6 +2,12 @@
   "": {
     "swift-dependencies": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/master.swiftdeps"
   },
+  "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/ContentView.swift": {
+    "dependencies": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.d",
+    "object": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.swift.o",
+    "swiftmodule": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView~partial.swiftmodule",
+    "swift-dependencies": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.swiftdeps"
+  },
   "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Models/Models.swift": {
     "dependencies": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/Models.d",
     "object": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/Models.swift.o",
@@ -13,12 +19,6 @@
     "object": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ReadingTrackerApp.swift.o",
     "swiftmodule": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ReadingTrackerApp~partial.swiftmodule",
     "swift-dependencies": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ReadingTrackerApp.swiftdeps"
-  },
-  "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/ContentView.swift": {
-    "dependencies": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.d",
-    "object": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.swift.o",
-    "swiftmodule": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView~partial.swiftmodule",
-    "swift-dependencies": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/ContentView.swiftdeps"
   },
   "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/Views/DetailsView.swift": {
     "dependencies": "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTrackerMac/.build/arm64-apple-macosx/debug/ReadingTrackerMac.build/DetailsView.d",

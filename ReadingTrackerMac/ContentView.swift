@@ -173,13 +173,13 @@ struct ContentView: View {
                 let backup = try decoder.decode(BackupData.self, from: data)
                 
                 // Clear existing
-                try modelContext.delete(model: Document.self)
-                try modelContext.delete(model: ProgressLog.self)
-                try modelContext.delete(model: Todo.self)
-                try modelContext.delete(model: Paper.self)
-                try modelContext.delete(model: ConceptNode.self)
-                try modelContext.delete(model: ConceptLink.self)
-                try modelContext.delete(model: GeneralMemo.self)
+                if let docs = try? modelContext.fetch(FetchDescriptor<Document>()) { docs.forEach { modelContext.delete($0) } }
+                if let logs = try? modelContext.fetch(FetchDescriptor<ProgressLog>()) { logs.forEach { modelContext.delete($0) } }
+                if let todos = try? modelContext.fetch(FetchDescriptor<Todo>()) { todos.forEach { modelContext.delete($0) } }
+                if let papers = try? modelContext.fetch(FetchDescriptor<Paper>()) { papers.forEach { modelContext.delete($0) } }
+                if let nodes = try? modelContext.fetch(FetchDescriptor<ConceptNode>()) { nodes.forEach { modelContext.delete($0) } }
+                if let links = try? modelContext.fetch(FetchDescriptor<ConceptLink>()) { links.forEach { modelContext.delete($0) } }
+                if let memos = try? modelContext.fetch(FetchDescriptor<GeneralMemo>()) { memos.forEach { modelContext.delete($0) } }
                 
                 // Import
                 var docMap = [UUID: Document]()

@@ -11,7 +11,22 @@ struct KnowledgeGraphView: View {
     @State private var selectedNode: ConceptNode?
     @State private var isEditing = false
     @State private var searchText = ""
+    @State private var connectionSearchText = ""
     @State private var isLinkMode = false
+    @State private var zoomScale: CGFloat = 1.0
+    @State private var isMoveTogetherMode = false
+    @State private var triggerRearrange = false
+    @State private var hasInitialFit = false
+    
+    @State private var selectedTag: String? = nil
+    @State private var tagInputText = ""
+    @State private var triggerFitScreen = false
+    @State private var targetCameraPosition: CGPoint?
+    
+    private var allAvailableTags: [String] {
+        let allTags = validNodes.flatMap { $0.tags }
+        return Array(Set(allTags)).sorted()
+    }
     
     private var validNodes: [ConceptNode] {
         nodes.filter { $0.modelContext != nil && !$0.isDeleted }
@@ -27,8 +42,18 @@ struct KnowledgeGraphView: View {
                 GraphSpriteView(
                     nodes: validNodes,
                     links: validLinks,
+                    selectedNodeId: selectedNode?.id,
                     searchText: searchText,
+                    selectedTag: selectedTag,
                     isLinkMode: isLinkMode,
+                    zoomScale: zoomScale,
+                    isMoveTogetherMode: isMoveTogetherMode,
+                    triggerRearrange: $triggerRearrange,
+                    triggerFitScreen: $triggerFitScreen,
+                    targetCameraPosition: targetCameraPosition,
+                    onZoomChanged: { newScale in
+                        zoomScale = newScale
+                    },
                     onNodeSelected: { id in
                         selectedNode = validNodes.first(where: { $0.id == id })
                         isEditing = false
@@ -37,7 +62,6 @@ struct KnowledgeGraphView: View {
                         if let node = validNodes.first(where: { $0.id == id }) {
                             node.x = position.x
                             node.y = position.y
-                            try? modelContext.save()
                         }
                     },
                     onLinkCreated: { srcId, tgtId in
@@ -51,26 +75,59 @@ struct KnowledgeGraphView: View {
                     }
                 )
                 .ignoresSafeArea()
+                .onAppear {
+                    if !hasInitialFit && !validNodes.isEmpty {
+                        fitNodesToScreen()
+                        hasInitialFit = true
+                    }
+                }
+                .onChange(of: validNodes.count) { _, _ in
+                    if !hasInitialFit && !validNodes.isEmpty {
+                        fitNodesToScreen()
+                        hasInitialFit = true
+                    }
+                }
                 
                 // Overlay controls
                 HStack {
                     Button(action: addNode) {
-                        Label("New Concept", systemImage: "plus")
+                        Image(systemName: "plus")
                     }
                     .buttonStyle(.borderedProminent)
+                    .help("New Concept")
                     
                     Toggle(isOn: $isLinkMode) {
                         Image(systemName: "link")
                     }
                     .toggleStyle(.button)
+                    .help("Link Mode")
+                    
+                    Toggle(isOn: $isMoveTogetherMode) {
+                        Image(systemName: "square.dashed.inset.filled")
+                    }
+                    .toggleStyle(.button)
+                    .help("Move Together")
+                    
+                    Button(action: { triggerRearrange = true }) {
+                        Image(systemName: "wand.and.stars")
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Rearrange Nodes")
                     
                     Spacer()
                     
-                    Button(role: .destructive, action: deleteAllNodes) {
-                        Image(systemName: "trash.fill")
+                    HStack(spacing: 8) {
+                        Button(action: { zoomScale = min(50.0, zoomScale + 0.2) }) {
+                            Image(systemName: "minus.magnifyingglass")
+                        }.buttonStyle(.bordered).help("Zoom Out")
+                        
+                        Button(action: { zoomScale = max(0.1, zoomScale - 0.2) }) {
+                            Image(systemName: "plus.magnifyingglass")
+                        }.buttonStyle(.bordered).help("Zoom In")
                     }
                     .padding(.trailing, 10)
                     
+
                     TextField("Search concepts...", text: $searchText)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 250)
@@ -87,7 +144,6 @@ struct KnowledgeGraphView: View {
                         HStack {
                             Spacer()
                             if !isEditing {
-                                Button("Edit") { isEditing = true }
                                 Button(role: .destructive, action: deleteSelectedNode) {
                                     Image(systemName: "trash")
                                 }
@@ -113,24 +169,119 @@ struct KnowledgeGraphView: View {
                             
                             Divider().padding(.vertical, 8)
                             
+                            // Compact Edit Tags UI
+                            VStack(alignment: .leading, spacing: 4) {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "tag").foregroundColor(.secondary).font(.caption)
+                                        
+                                        ForEach(node.tags, id: \.self) { tag in
+                                            HStack(spacing: 2) {
+                                                Text(tag)
+                                                Button(action: {
+                                                    node.tags.removeAll(where: { $0 == tag })
+                                                }) {
+                                                    Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                                                }.buttonStyle(.plain)
+                                            }
+                                            .font(.caption)
+                                            .padding(.vertical, 2)
+                                            .padding(.horizontal, 6)
+                                            .background(Color.secondary.opacity(0.15))
+                                            .cornerRadius(6)
+                                        }
+                                        
+                                        TextField("Add tag...", text: $tagInputText)
+                                            .textFieldStyle(.plain)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .frame(minWidth: 60)
+                                            .onSubmit {
+                                                let newTag = tagInputText.trimmingCharacters(in: .whitespaces)
+                                                if !newTag.isEmpty && !node.tags.contains(newTag) {
+                                                    node.tags.append(newTag)
+                                                    tagInputText = ""
+                                                }
+                                            }
+                                    }
+                                }
+                                
+                                if !tagInputText.isEmpty {
+                                    let suggestions = allAvailableTags.filter { $0.localizedCaseInsensitiveContains(tagInputText) && !node.tags.contains($0) }
+                                    if !suggestions.isEmpty {
+                                        ScrollView(.horizontal, showsIndicators: false) {
+                                            HStack(spacing: 4) {
+                                                ForEach(suggestions, id: \.self) { sug in
+                                                    Button(action: {
+                                                        node.tags.append(sug)
+                                                        tagInputText = ""
+                                                    }) {
+                                                        Text(sug)
+                                                            .font(.caption)
+                                                            .padding(.vertical, 2)
+                                                            .padding(.horizontal, 6)
+                                                            .background(Color.secondary.opacity(0.1))
+                                                            .cornerRadius(4)
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            Divider().padding(.vertical, 8)
+                            
                             TextEditor(text: Binding(
                                 get: { node.content },
                                 set: { node.content = $0 }
                             ))
                             .font(.system(.body, design: .monospaced))
                             .padding(.horizontal)
+                            .padding(.bottom, 20)
                             
                         } else {
                             Text(node.title.isEmpty ? "Untitled Concept" : node.title)
                                 .font(.largeTitle.bold())
                                 .foregroundColor(node.title.isEmpty ? .secondary : .primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal)
+                                .contentShape(Rectangle())
+                                .onTapGesture { isEditing = true }
                                 
                             Divider().padding(.vertical, 8)
                             
+                            if !node.tags.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack {
+                                        ForEach(node.tags, id: \.self) { tag in
+                                            Button(action: {
+                                                if selectedTag == tag {
+                                                    selectedTag = nil
+                                                } else {
+                                                    selectedTag = tag
+                                                }
+                                            }) {
+                                                Text(tag)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .padding(.vertical, 4)
+                                            .padding(.horizontal, 8)
+                                            .background(selectedTag == tag ? Color.purple.opacity(0.4) : Color.gray.opacity(0.2))
+                                            .cornerRadius(8)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                                .padding(.bottom, 8)
+                            }
+                            
                             ScrollView {
                                 VStack(alignment: .leading) {
-                                    if let attrStr = try? AttributedString(markdown: node.content, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)) {
+                                    let processedContent = node.content.replacingOccurrences(of: "\n", with: "  \n")
+                                    if let attrStr = try? AttributedString(markdown: processedContent, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)) {
                                         Text(attrStr)
                                             .font(.body)
                                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -141,13 +292,52 @@ struct KnowledgeGraphView: View {
                                     }
                                 }
                                 .padding(.horizontal)
+                                .contentShape(Rectangle())
+                                .onTapGesture { isEditing = true }
                                 
                                 VStack(alignment: .leading, spacing: 8) {
-                                    if !node.linksOut.isEmpty || !node.linksIn.isEmpty {
-                                        Text("Connections")
-                                            .font(.headline)
-                                            .padding(.top, 16)
-                                            .padding(.bottom, 4)
+                                    Text("Connections")
+                                        .font(.headline)
+                                        .padding(.top, 16)
+                                        .padding(.bottom, 4)
+                                    
+                                    HStack {
+                                        Image(systemName: "magnifyingglass").foregroundColor(.secondary)
+                                        TextField("Search to connect...", text: $connectionSearchText)
+                                            .textFieldStyle(.roundedBorder)
+                                            .frame(minHeight: 28)
+                                    }
+                                    .padding(.vertical, 4)
+                                    .padding(.bottom, 8)
+                                    
+                                    if !connectionSearchText.isEmpty {
+                                        let searchResults = validNodes.filter { $0.id != node.id && ($0.title.localizedCaseInsensitiveContains(connectionSearchText) || $0.content.localizedCaseInsensitiveContains(connectionSearchText)) }
+                                        if !searchResults.isEmpty {
+                                            ScrollView {
+                                                VStack(alignment: .leading) {
+                                                    ForEach(searchResults) { targetNode in
+                                                        Button(action: {
+                                                            let link = ConceptLink(source: node, target: targetNode)
+                                                            modelContext.insert(link)
+                                                            try? modelContext.save()
+                                                            connectionSearchText = ""
+                                                        }) {
+                                                            HStack {
+                                                                Image(systemName: "link.badge.plus")
+                                                                Text(targetNode.title.isEmpty ? "Untitled Concept" : targetNode.title)
+                                                                    .lineLimit(1)
+                                                            }
+                                                        }
+                                                        .buttonStyle(.plain)
+                                                        .foregroundColor(.accentColor)
+                                                        .padding(.vertical, 4)
+                                                    }
+                                                }
+                                            }
+                                            .frame(maxHeight: 150)
+                                            
+                                            Divider().padding(.vertical, 4)
+                                        }
                                     }
                                     
                                     ForEach(node.linksOut.filter { $0.modelContext != nil && !$0.isDeleted }) { link in
@@ -212,7 +402,7 @@ struct KnowledgeGraphView: View {
                             }
                         }
                     }
-                    .frame(width: 350)
+                    .frame(width: 450)
                 } else {
                     VStack(spacing: 16) {
                         Text("Somewhere, something incredible is waiting to be known.")
@@ -226,12 +416,34 @@ struct KnowledgeGraphView: View {
                             .padding(.top, 4)
                     }
                     .padding()
-                    .frame(width: 350)
+                    .frame(width: 450)
                 }
             }
             .frame(maxHeight: .infinity)
             .background(Color(NSColor.controlBackgroundColor))
         }
+    }
+    
+    private func fitNodesToScreen() {
+        guard !validNodes.isEmpty else { return }
+        let xs = validNodes.map { $0.x }
+        let ys = validNodes.map { $0.y }
+        let minX = xs.min() ?? 0
+        let maxX = xs.max() ?? 0
+        let minY = ys.min() ?? 0
+        let maxY = ys.max() ?? 0
+        
+        let width = max(maxX - minX + 400, 800)
+        let height = max(maxY - minY + 400, 600)
+        
+        let scaleX = width / 800.0
+        let scaleY = height / 600.0
+        var newScale = max(scaleX, scaleY)
+        newScale = max(0.1, min(newScale, 50.0))
+        zoomScale = newScale
+        
+        targetCameraPosition = CGPoint(x: (minX + maxX) / 2, y: (minY + maxY) / 2)
+        triggerFitScreen = true
     }
     
     private func addNode() {
@@ -244,20 +456,15 @@ struct KnowledgeGraphView: View {
     
     private func deleteSelectedNode() {
         if let node = selectedNode {
+            for link in node.linksIn { modelContext.delete(link) }
+            for link in node.linksOut { modelContext.delete(link) }
             modelContext.delete(node)
             try? modelContext.save()
             selectedNode = nil
         }
     }
     
-    private func deleteAllNodes() {
-        // Use SwiftData's batch delete to avoid relationship fault crashes
-        // that occur when iterating and deleting heavily interconnected nodes.
-        try? modelContext.delete(model: ConceptLink.self)
-        try? modelContext.delete(model: ConceptNode.self)
-        try? modelContext.save()
-        selectedNode = nil
-    }
+
 }
 
 // MARK: - SpriteKit Integration
@@ -265,9 +472,17 @@ struct KnowledgeGraphView: View {
 struct GraphSpriteView: NSViewRepresentable {
     var nodes: [ConceptNode]
     var links: [ConceptLink]
+    var selectedNodeId: UUID?
     var searchText: String
+    var selectedTag: String?
     var isLinkMode: Bool
+    var zoomScale: CGFloat
+    var isMoveTogetherMode: Bool
+    @Binding var triggerRearrange: Bool
+    @Binding var triggerFitScreen: Bool
+    var targetCameraPosition: CGPoint?
     
+    var onZoomChanged: (CGFloat) -> Void
     var onNodeSelected: (UUID) -> Void
     var onNodeMoved: (UUID, CGPoint) -> Void
     var onLinkCreated: (UUID, UUID) -> Void
@@ -279,15 +494,33 @@ struct GraphSpriteView: NSViewRepresentable {
         scene.onNodeSelected = onNodeSelected
         scene.onNodeMoved = onNodeMoved
         scene.onLinkCreated = onLinkCreated
+        scene.onZoomChanged = onZoomChanged
         view.presentScene(scene)
         
-        scene.updateData(nodes: nodes, links: links, searchText: searchText, isLinkMode: isLinkMode)
+        scene.updateData(nodes: nodes, links: links, selectedNodeId: selectedNodeId, searchText: searchText, selectedTag: selectedTag, isLinkMode: isLinkMode)
+        scene.cameraNode.setScale(zoomScale)
         return view
     }
     
     func updateNSView(_ nsView: SKView, context: Context) {
         if let scene = nsView.scene as? GraphScene {
-            scene.updateData(nodes: nodes, links: links, searchText: searchText, isLinkMode: isLinkMode)
+            scene.isMoveTogetherMode = isMoveTogetherMode
+            scene.updateData(nodes: nodes, links: links, selectedNodeId: selectedNodeId, searchText: searchText, selectedTag: selectedTag, isLinkMode: isLinkMode)
+            
+            if triggerFitScreen {
+                if let pos = targetCameraPosition {
+                    scene.cameraNode.position = pos
+                }
+                scene.cameraNode.setScale(zoomScale)
+                DispatchQueue.main.async { triggerFitScreen = false }
+            } else if scene.cameraNode.xScale != zoomScale {
+                scene.cameraNode.setScale(zoomScale)
+            }
+            
+            if triggerRearrange {
+                scene.rearrangeNodes()
+                DispatchQueue.main.async { triggerRearrange = false }
+            }
         }
     }
 }
@@ -296,11 +529,14 @@ class GraphScene: SKScene {
     var onNodeSelected: ((UUID) -> Void)?
     var onNodeMoved: ((UUID, CGPoint) -> Void)?
     var onLinkCreated: ((UUID, UUID) -> Void)?
+    var onZoomChanged: ((CGFloat) -> Void)?
+    
+    var isMoveTogetherMode = false
     
     var draggedNodes: Set<UUID> = []
     
     private var nodeSprites: [UUID: SKNode] = [:]
-    private var linkLines: [SKShapeNode] = []
+    private var linkLinesNode: SKShapeNode = SKShapeNode()
     
     struct LinkData {
         let sourceId: UUID
@@ -312,6 +548,7 @@ class GraphScene: SKScene {
     private var dragTarget: SKNode?
     private var isLinking: Bool = false
     private var tempLinkLine: SKShapeNode?
+    private var needsPathUpdate: Bool = true
     
     let cameraNode = SKCameraNode()
     
@@ -320,9 +557,15 @@ class GraphScene: SKScene {
         self.physicsWorld.gravity = .zero
         self.camera = cameraNode
         self.addChild(cameraNode)
+        
+        linkLinesNode.strokeColor = NSColor.systemGray.withAlphaComponent(0.5)
+        linkLinesNode.lineWidth = 1
+        linkLinesNode.zPosition = -1
+        self.addChild(linkLinesNode)
     }
     
-    func updateData(nodes: [ConceptNode], links: [ConceptLink], searchText: String, isLinkMode: Bool) {
+    func updateData(nodes: [ConceptNode], links: [ConceptLink], selectedNodeId: UUID?, searchText: String, selectedTag: String?, isLinkMode: Bool) {
+        needsPathUpdate = true
         var validNodeIDs: [PersistentIdentifier: UUID] = [:]
         for node in nodes {
             guard node.modelContext != nil, !node.isDeleted else { continue }
@@ -350,8 +593,23 @@ class GraphScene: SKScene {
         
         for node in nodes {
             guard node.modelContext != nil, !node.isDeleted else { continue }
+            let isSelected = node.id == selectedNodeId
             let isMatch = !searchText.isEmpty && (node.title.localizedCaseInsensitiveContains(searchText) || node.content.localizedCaseInsensitiveContains(searchText))
+            let isTagMatch = selectedTag != nil && node.tags.contains(selectedTag!)
             let isDimmed = !searchText.isEmpty && !isMatch
+            
+            let color: NSColor
+            if isSelected {
+                color = NSColor(red: 0.3, green: 0.8, blue: 1.0, alpha: 1.0)
+            } else if isTagMatch {
+                color = .systemPurple
+            } else if isMatch {
+                color = .yellow
+            } else if isDimmed {
+                color = .darkGray
+            } else {
+                color = .white
+            }
             
             if let sprite = nodeSprites[node.id] {
                 // If it exists, just ensure it's at the right spot if it wasn't being dragged
@@ -360,9 +618,16 @@ class GraphScene: SKScene {
                 }
                 
                 if let dot = sprite.childNode(withName: "dot") as? SKShapeNode {
-                    dot.fillColor = isMatch ? .yellow : (isDimmed ? .darkGray : .white)
-                    dot.xScale = isMatch ? 1.5 : 1.0
-                    dot.yScale = isMatch ? 1.5 : 1.0
+                    dot.fillColor = color
+                    dot.xScale = (isMatch || isTagMatch) ? 1.5 : (isSelected ? 1.3 : 1.0)
+                    dot.yScale = (isMatch || isTagMatch) ? 1.5 : (isSelected ? 1.3 : 1.0)
+                    if isSelected {
+                        dot.strokeColor = NSColor(red: 0.3, green: 0.8, blue: 1.0, alpha: 1.0)
+                        dot.glowWidth = 8.0
+                    } else {
+                        dot.strokeColor = .clear
+                        dot.glowWidth = 0.0
+                    }
                 }
             } else {
                 let group = SKNode()
@@ -376,10 +641,16 @@ class GraphScene: SKScene {
                 group.name = node.id.uuidString
                 
                 let dot = SKShapeNode(circleOfRadius: 5)
-                dot.fillColor = isMatch ? .yellow : (isDimmed ? .darkGray : .white)
-                dot.xScale = isMatch ? 1.5 : 1.0
-                dot.yScale = isMatch ? 1.5 : 1.0
-                dot.strokeColor = .clear
+                dot.fillColor = color
+                dot.xScale = (isMatch || isTagMatch) ? 1.5 : (isSelected ? 1.3 : 1.0)
+                dot.yScale = (isMatch || isTagMatch) ? 1.5 : (isSelected ? 1.3 : 1.0)
+                if isSelected {
+                    dot.strokeColor = NSColor(red: 0.3, green: 0.8, blue: 1.0, alpha: 1.0)
+                    dot.glowWidth = 8.0
+                } else {
+                    dot.strokeColor = .clear
+                    dot.glowWidth = 0.0
+                }
                 dot.name = "dot"
                 group.addChild(dot)
                 
@@ -396,25 +667,24 @@ class GraphScene: SKScene {
     }
     
     override func update(_ currentTime: TimeInterval) {
-        for line in linkLines { line.removeFromParent() }
-        linkLines.removeAll()
+        var isMoving = false
+        for sprite in nodeSprites.values {
+            if sprite.hasActions() { isMoving = true; break }
+        }
         
+        if !isMoving && dragTarget == nil && !needsPathUpdate { return }
+        needsPathUpdate = false
+        
+        let path = CGMutablePath()
         for linkData in _linksData {
             let srcId = linkData.sourceId
             let tgtId = linkData.targetId
             guard let n1 = nodeSprites[srcId], let n2 = nodeSprites[tgtId] else { continue }
             
-            let path = CGMutablePath()
             path.move(to: n1.position)
             path.addLine(to: n2.position)
-            
-            let line = SKShapeNode(path: path)
-            line.strokeColor = NSColor.systemGray.withAlphaComponent(0.5)
-            line.lineWidth = 1
-            line.zPosition = -1
-            addChild(line)
-            linkLines.append(line)
         }
+        linkLinesNode.path = path
     }
     
     private func getConnectedComponent(for nodeId: UUID) -> Set<UUID> {
@@ -457,7 +727,11 @@ class GraphScene: SKScene {
                 dragTarget = parentNode
                 
                 if let draggedId = UUID(uuidString: uuidString) {
-                    draggedNodes = getConnectedComponent(for: draggedId)
+                    if isMoveTogetherMode {
+                        draggedNodes = getConnectedComponent(for: draggedId)
+                    } else {
+                        draggedNodes = [draggedId]
+                    }
                 }
                 
                 if linkingMode {
@@ -470,7 +744,11 @@ class GraphScene: SKScene {
                 } else {
                     onNodeSelected?(uuid)
                     if let dot = parentNode?.childNode(withName: "dot") as? SKShapeNode {
-                        dot.fillColor = .cyan
+                        dot.fillColor = NSColor(red: 0.3, green: 0.8, blue: 1.0, alpha: 1.0)
+                        dot.xScale = 1.3
+                        dot.yScale = 1.3
+                        dot.strokeColor = NSColor(red: 0.3, green: 0.8, blue: 1.0, alpha: 1.0)
+                        dot.glowWidth = 8.0
                     }
                 }
                 break
@@ -499,14 +777,10 @@ class GraphScene: SKScene {
                         if let sprite = nodeSprites[id] {
                             sprite.position.x += dx
                             sprite.position.y += dy
-                            onNodeMoved?(id, sprite.position)
                         }
                     }
                 } else {
                     target.position = location
-                    if let uuidString = target.name, let id = UUID(uuidString: uuidString) {
-                        onNodeMoved?(id, location)
-                    }
                 }
             }
         } else {
@@ -516,13 +790,22 @@ class GraphScene: SKScene {
             }
         }
     }
-    
     override func scrollWheel(with event: NSEvent) {
         guard let camera = self.camera else { return }
-        let zoomMultiplier: CGFloat = 1.0 + (event.scrollingDeltaY * -0.01)
+        let delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.deltaY * 5.0
+        let zoomMultiplier: CGFloat = 1.0 + (delta * -0.01)
         var newScale = camera.xScale * zoomMultiplier
-        newScale = max(0.2, min(newScale, 5.0))
+        newScale = max(0.1, min(newScale, 50.0))
         camera.setScale(newScale)
+        onZoomChanged?(newScale)
+    }
+    
+    override func magnify(with event: NSEvent) {
+        guard let camera = self.camera else { return }
+        var newScale = camera.xScale * (1.0 - event.magnification)
+        newScale = max(0.1, min(newScale, 50.0))
+        camera.setScale(newScale)
+        onZoomChanged?(newScale)
     }
     
     override func mouseUp(with event: NSEvent) {
@@ -552,8 +835,16 @@ class GraphScene: SKScene {
                 if let dot = target.childNode(withName: "dot") as? SKShapeNode {
                     dot.fillColor = .white
                 }
-                if let uuid = UUID(uuidString: target.name ?? "") {
-                    onNodeMoved?(uuid, target.position)
+                if !draggedNodes.isEmpty {
+                    for id in draggedNodes {
+                        if let sprite = nodeSprites[id] {
+                            onNodeMoved?(id, sprite.position)
+                        }
+                    }
+                } else {
+                    if let uuid = UUID(uuidString: target.name ?? "") {
+                        onNodeMoved?(uuid, target.position)
+                    }
                 }
             }
         }
@@ -561,5 +852,82 @@ class GraphScene: SKScene {
         dragTarget = nil
         draggedNodes.removeAll()
         // don't reset isLinking here because it's bound to the toggle state
+    }
+    
+    func rearrangeNodes() {
+        let k = 150.0
+        let k_sq = k * k
+        var positions: [UUID: CGPoint] = [:]
+        for (id, sprite) in nodeSprites { positions[id] = sprite.position }
+        
+        // Capture links data so we can use it safely in background
+        let linksData = self._linksData
+        let nodeKeys = Array(nodeSprites.keys)
+        let midX = frame.midX
+        let midY = frame.midY
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            for _ in 0..<150 {
+                var forces: [UUID: CGPoint] = [:]
+                for id in nodeKeys { forces[id] = .zero }
+                
+                for i in 0..<nodeKeys.count {
+                    for j in (i+1)..<nodeKeys.count {
+                        let id1 = nodeKeys[i]; let id2 = nodeKeys[j]
+                        let p1 = positions[id1]!; let p2 = positions[id2]!
+                        let dx = p1.x - p2.x; let dy = p1.y - p2.y
+                        let distSq = max(dx*dx + dy*dy, 0.1)
+                        let dist = sqrt(distSq)
+                        if dist < 1000 {
+                            let force = k_sq / dist
+                            let fx = (dx / dist) * force
+                            let fy = (dy / dist) * force
+                            forces[id1]!.x += fx; forces[id1]!.y += fy
+                            forces[id2]!.x -= fx; forces[id2]!.y -= fy
+                        }
+                    }
+                }
+                
+                for link in linksData {
+                    guard let p1 = positions[link.sourceId], let p2 = positions[link.targetId] else { continue }
+                    let dx = p1.x - p2.x; let dy = p1.y - p2.y
+                    let dist = max(sqrt(dx*dx + dy*dy), 0.1)
+                    let force = (dist * dist) / k
+                    let fx = (dx / dist) * force; let fy = (dy / dist) * force
+                    forces[link.sourceId]!.x -= fx; forces[link.sourceId]!.y -= fy
+                    forces[link.targetId]!.x += fx; forces[link.targetId]!.y += fy
+                }
+                
+                let center = CGPoint(x: midX, y: midY)
+                for id in nodeKeys {
+                    let p = positions[id]!
+                    let dx = center.x - p.x; let dy = center.y - p.y
+                    let dist = max(sqrt(dx*dx + dy*dy), 0.1)
+                    let force = dist * 0.1
+                    forces[id]!.x += (dx / dist) * force; forces[id]!.y += (dy / dist) * force
+                }
+                
+                for id in nodeKeys {
+                    let f = forces[id]!
+                    let maxMove: CGFloat = 50.0
+                    let moveDist = sqrt(f.x*f.x + f.y*f.y)
+                    let scale = min(moveDist, maxMove) / max(moveDist, 0.1)
+                    positions[id]!.x += f.x * scale * 0.1
+                    positions[id]!.y += f.y * scale * 0.1
+                }
+            }
+            
+            DispatchQueue.main.async {
+                self.needsPathUpdate = true
+                for (id, sprite) in self.nodeSprites {
+                    if let newPos = positions[id] {
+                        let action = SKAction.move(to: newPos, duration: 0.8)
+                        action.timingMode = .easeInEaseOut
+                        sprite.run(action)
+                        self.onNodeMoved?(id, newPos)
+                    }
+                }
+            }
+        }
     }
 }

@@ -3,6 +3,7 @@ import SwiftData
 
 struct ContentView: View {
     @State private var selectedView: AppView? = .details
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @Environment(\.modelContext) private var modelContext
     
     @Query private var documents: [Document]
@@ -27,7 +28,7 @@ struct ContentView: View {
     }
     
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $selectedView) {
                 NavigationLink(value: AppView.details) {
                     Label("Details", systemImage: "list.bullet.rectangle.portrait")
@@ -59,12 +60,20 @@ struct ContentView: View {
                 PlanningView()
             case .graph:
                 KnowledgeGraphView()
-            case .none:
-                Text("Select a view")
+            default:
+                Text("Select a view from the sidebar")
+                    .font(.largeTitle)
                     .foregroundColor(.secondary)
             }
         }
-        .frame(minWidth: 1000, minHeight: 600)
+        .onChange(of: selectedView) { _, newValue in
+            if newValue == .graph {
+                columnVisibility = .detailOnly
+            } else {
+                columnVisibility = .all
+            }
+        }
+        .frame(minWidth: 1000, idealWidth: 1000, minHeight: 600, idealHeight: 600)
         .preferredColorScheme(.dark)
         .tint(.white)
         .toolbar {
