@@ -13,6 +13,7 @@ struct ContentView: View {
     @Query private var conceptNodes: [ConceptNode]
     @Query private var conceptLinks: [ConceptLink]
     @Query private var memos: [GeneralMemo]
+    @Query private var movies: [Movie]
     
     @AppStorage("tagOrder") private var tagOrderString: String = ""
     
@@ -25,6 +26,7 @@ struct ContentView: View {
         case papers
         case planning
         case graph
+        case movies
     }
     
     var body: some View {
@@ -45,6 +47,9 @@ struct ContentView: View {
                 NavigationLink(value: AppView.graph) {
                     Label("Knowledge Graph", systemImage: "brain.head.profile")
                 }
+                NavigationLink(value: AppView.movies) {
+                    Label("Movies", systemImage: "film")
+                }
             }
             .navigationTitle("Tracker")
             .listStyle(.sidebar)
@@ -60,6 +65,8 @@ struct ContentView: View {
                 PlanningView()
             case .graph:
                 KnowledgeGraphView()
+            case .movies:
+                MoviesView()
             default:
                 Text("Select a view from the sidebar")
                     .font(.largeTitle)
@@ -89,40 +96,113 @@ struct ContentView: View {
         }
     }
     
+    private func getDocumentsDirectory() -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+    
     private func exportData() {
-        let backup = BackupData(
-            documents: documents.map { BackupDocument(id: FlexibleID(uuid: $0.id), title: $0.title, totalPages: $0.totalPages, targetDate: $0.targetDate, difficulty: $0.difficulty, link: $0.link, orderIndex: $0.orderIndex, progressLogs: $0.progressLogs.map { BackupProgressLog(id: FlexibleID(uuid: $0.id), date: $0.date, page: $0.page, topic: $0.topic, satisfaction: $0.satisfaction) }, tags: $0.tags) },
-            progressLogs: progressLogs.map { BackupProgressLog(id: FlexibleID(uuid: $0.id), date: $0.date, page: $0.page, topic: $0.topic, satisfaction: $0.satisfaction, documentId: $0.document.map { FlexibleID(uuid: $0.id) }) },
-            todos: todos.map { BackupTodo(id: FlexibleID(uuid: $0.id), text: $0.text, completed: $0.completed, status: $0.status) },
-            papers: papers.map { BackupPaper(id: FlexibleID(uuid: $0.id), title: $0.title, url: $0.url, status: $0.status, tags: $0.tags) },
-            conceptNodes: conceptNodes.map { BackupConceptNode(id: FlexibleID(uuid: $0.id), title: $0.title, shortName: $0.shortName, content: $0.content, x: $0.x, y: $0.y) },
-            conceptLinks: conceptLinks.map { BackupConceptLink(id: FlexibleID(uuid: $0.id), sourceId: FlexibleID(uuid: $0.source?.id ?? UUID()), targetId: FlexibleID(uuid: $0.target?.id ?? UUID())) },
-            memos: memos.map { BackupMemo(id: FlexibleID(uuid: $0.id), text: $0.text, tabIndex: $0.tabIndex, tabName: $0.tabName) },
-            tagOrder: tagOrderString
-        )
-        
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        encoder.dateEncodingStrategy = .iso8601
-        
-        guard let data = try? encoder.encode(backup) else {
-            alertMessage = "Failed to encode data."
-            showingAlert = true
-            return
-        }
-        
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "ReadingTrackerBackup.json"
         
         if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try data.write(to: url)
-                alertMessage = "Exported successfully."
-            } catch {
-                alertMessage = "Failed to write file."
+            // Build dictionaries to map PersistentIdentifier -> UUID without triggering faults
+            var docMap = [PersistentIdentifier: UUID]()
+            for d in documents where !d.isDeleted { docMap[d.persistentModelID] = d.id }
+            
+            var nodeMap = [PersistentIdentifier: UUID]()
+            for n in conceptNodes where !n.isDeleted { nodeMap[n.persistentModelID] = n.id }
+            
+            let safeDocs = documents.filter { !$0.isDeleted }.map { doc in
+                BackupDocument(id: FlexibleID(uuid: doc.id), title: doc.title, totalPages: doc.totalPages, targetDate: doc.targetDate, difficulty: doc.difficulty, link: doc.link, orderIndex: doc.orderIndex, progressLogs: doc.progressLogs.filter { !$0.isDeleted }.map { BackupProgressLog(id: FlexibleID(uuid: $0.id), date: $0.date, page: $0.page, topic: $0.topic, satisfaction: $0.satisfaction) }, tags: doc.tags)
             }
-            showingAlert = true
+            
+            let safeLogs = progressLogs.filter { !$0.isDeleted }.compactMap { log -> BackupProgressLog? in
+                var docId: UUID? = nil
+                if let dProxy = log.document {
+                    if let dId = docMap[dProxy.persistentModelID] {
+                        docId = dId
+                    } else {
+                        // Dangling proxy! Safely discard or set to nil. We'll discard it since it's orphaned.
+                        return nil
+                    }
+                }
+                return BackupProgressLog(id: FlexibleID(uuid: log.id), date: log.date, page: log.page, topic: log.topic, satisfaction: log.satisfaction, documentId: docId.map { FlexibleID(uuid: $0) })
+            }
+            
+            let safeTodos = todos.filter { !$0.isDeleted }.map { t in
+                BackupTodo(id: FlexibleID(uuid: t.id), text: t.text, completed: t.completed, status: t.status, orderIndex: t.orderIndex, deadline: t.deadline, isImportant: t.isImportant)
+            }
+            
+            let safePapers = papers.filter { !$0.isDeleted }.map { p in
+                BackupPaper(id: FlexibleID(uuid: p.id), title: p.title, url: p.url, status: p.status, tags: p.tags)
+            }
+            
+            let safeNodes = conceptNodes.filter { !$0.isDeleted }.map { n in
+                BackupConceptNode(id: FlexibleID(uuid: n.id), title: n.title, shortName: n.shortName, content: n.content, x: n.x, y: n.y)
+            }
+            
+            let safeLinks = conceptLinks.filter { !$0.isDeleted }.compactMap { link -> BackupConceptLink? in
+                guard let sProxy = link.source, let tProxy = link.target else { return nil }
+                // Safely lookup IDs via persistentModelID to avoid SIGTRAP on dangling proxies
+                guard let sId = nodeMap[sProxy.persistentModelID],
+                      let tId = nodeMap[tProxy.persistentModelID] else {
+                    return nil
+                }
+                return BackupConceptLink(id: FlexibleID(uuid: link.id), sourceId: FlexibleID(uuid: sId), targetId: FlexibleID(uuid: tId))
+            }
+            
+            let safeMemos = memos.filter { !$0.isDeleted }.map { m in
+                BackupMemo(id: FlexibleID(uuid: m.id), text: m.text, tabIndex: m.tabIndex, tabName: m.tabName)
+            }
+            
+            struct MovieMeta {
+                let id: UUID; let title: String; let director: String; let rating: Double
+                let review: String; let imagePath: String?; let tags: [String]; let orderIndex: Int
+            }
+            
+            let moviesMeta = movies.filter { !$0.isDeleted }.map { m in
+                MovieMeta(id: m.id, title: m.title, director: m.director, rating: m.rating, review: m.review, imagePath: m.imagePath, tags: m.tags, orderIndex: m.orderIndex)
+            }
+            
+            let tOrder = tagOrderString
+            let docsDir = getDocumentsDirectory()
+            
+            Task.detached {
+                // Process heavy file I/O and encoding in the background
+                var moviesBackup: [BackupMovie] = []
+                for m in moviesMeta {
+                    var imgData: Data? = nil
+                    if let path = m.imagePath {
+                        let fileURL = docsDir.appendingPathComponent(path)
+                        imgData = try? Data(contentsOf: fileURL)
+                    }
+                    moviesBackup.append(BackupMovie(id: FlexibleID(uuid: m.id), title: m.title, director: m.director, rating: m.rating, review: m.review, imagePath: m.imagePath, tags: m.tags, imageData: imgData, orderIndex: m.orderIndex))
+                }
+                
+                let backup = BackupData(
+                    documents: safeDocs, progressLogs: safeLogs, todos: safeTodos, papers: safePapers,
+                    conceptNodes: safeNodes, conceptLinks: safeLinks, memos: safeMemos, movies: moviesBackup, tagOrder: tOrder
+                )
+                
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = .prettyPrinted
+                encoder.dateEncodingStrategy = .iso8601
+                
+                do {
+                    let data = try encoder.encode(backup)
+                    try data.write(to: url)
+                    await MainActor.run {
+                        self.alertMessage = "Exported successfully."
+                        self.showingAlert = true
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.alertMessage = "Failed to export: \(error.localizedDescription)"
+                        self.showingAlert = true
+                    }
+                }
+            }
         }
     }
     
@@ -133,238 +213,249 @@ struct ContentView: View {
         panel.canChooseDirectories = false
         
         if panel.runModal() == .OK, let url = panel.url {
-            do {
-                let data = try Data(contentsOf: url)
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .custom { decoder in
-                    let container = try decoder.singleValueContainer()
-                    if let str = try? container.decode(String.self) {
-                        let formatter = ISO8601DateFormatter()
-                        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                        if let date = formatter.date(from: str) { return date }
-                        let formatter2 = ISO8601DateFormatter()
-                        if let date = formatter2.date(from: str) { return date }
-                    }
-                    if let d = try? container.decode(Double.self) {
-                        return Date(timeIntervalSinceReferenceDate: d)
-                    }
-                    throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format")
-                }
-                
-                let jsonObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                let foundKeys = jsonObj?.keys.joined(separator: ", ") ?? "unknown"
-                
-                var debugInfo = ""
-                if let dict = jsonObj {
-                    let dType = type(of: dict["data"])
-                    debugInfo += "\nDataType: \(dType)"
-                    if let dataArr = dict["data"] as? [[String: Any]], let first = dataArr.first {
-                        let typeInfo = first.map { "\($0.key):\(type(of: $0.value))" }.joined(separator: ", ")
-                        debugInfo += "\nData keys: \(first.keys.joined(separator: ", "))\nTypes: \(typeInfo)"
-                        
-                        if let plArr = first["progressLogs"] as? [[String: Any]], let plFirst = plArr.first {
-                            let plTypeInfo = plFirst.map { "\($0.key):\(type(of: $0.value))" }.joined(separator: ", ")
-                            debugInfo += "\nPL Types: \(plTypeInfo)"
+            Task.detached {
+                do {
+                    let data = try Data(contentsOf: url)
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .custom { decoder in
+                        let container = try decoder.singleValueContainer()
+                        if let str = try? container.decode(String.self) {
+                            let formatter = ISO8601DateFormatter()
+                            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                            if let date = formatter.date(from: str) { return date }
+                            let formatter2 = ISO8601DateFormatter()
+                            if let date = formatter2.date(from: str) { return date }
                         }
-                    } else if let dataDict = dict["data"] as? [String: Any] {
-                        debugInfo += "\nData is Dict, keys: \(dataDict.keys.prefix(3).joined(separator: ", "))"
-                        if let firstVal = dataDict.values.first as? [String: Any] {
-                            debugInfo += "\nInner keys: \(firstVal.keys.joined(separator: ", "))"
+                        if let d = try? container.decode(Double.self) {
+                            return Date(timeIntervalSinceReferenceDate: d)
                         }
+                        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format")
                     }
                     
-                    let mType = type(of: dict["memo"])
-                    debugInfo += "\nMemoType: \(mType)"
-                    if let memoArr = dict["memo"] as? [[String: Any]], let first = memoArr.first {
-                        debugInfo += "\nMemo keys: \(first.keys.joined(separator: ", "))"
-                    } else if let memoDict = dict["memo"] as? [String: Any] {
-                        debugInfo += "\nMemo is Dict, keys: \(memoDict.keys.prefix(3).joined(separator: ", "))"
-                    }
-                }
-                
-                let backup = try decoder.decode(BackupData.self, from: data)
-                
-                if let tagOrder = backup.tagOrder {
-                    tagOrderString = tagOrder
-                }
-                
-                // Maps for existing data
-                var existingDocs = [UUID: Document]()
-                for d in documents { existingDocs[d.id] = d }
-                
-                var existingLogs = [UUID: ProgressLog]()
-                for l in progressLogs { existingLogs[l.id] = l }
-                
-                var existingTodos = [UUID: Todo]()
-                for t in todos { existingTodos[t.id] = t }
-                
-                var existingPapers = [UUID: Paper]()
-                for p in papers { existingPapers[p.id] = p }
-                
-                var existingNodes = [UUID: ConceptNode]()
-                for n in conceptNodes { existingNodes[n.id] = n }
-                
-                var existingLinks = [UUID: ConceptLink]()
-                for l in conceptLinks { existingLinks[l.id] = l }
-                
-                var existingMemos = [UUID: GeneralMemo]()
-                for m in memos { existingMemos[m.id] = m }
+                    let backup = try decoder.decode(BackupData.self, from: data)
+                    
+                    await MainActor.run {
+                        if let tagOrder = backup.tagOrder {
+                            self.tagOrderString = tagOrder
+                        }
+                        
+                        var existingDocs = [UUID: Document]()
+                        for d in self.documents { existingDocs[d.id] = d }
+                        
+                        var existingLogs = [UUID: ProgressLog]()
+                        for l in self.progressLogs { existingLogs[l.id] = l }
+                        
+                        var existingTodos = [UUID: Todo]()
+                        for t in self.todos { existingTodos[t.id] = t }
+                        
+                        var existingPapers = [UUID: Paper]()
+                        for p in self.papers { existingPapers[p.id] = p }
+                        
+                        var existingNodes = [UUID: ConceptNode]()
+                        for n in self.conceptNodes { existingNodes[n.id] = n }
+                        
+                        var existingLinks = [UUID: ConceptLink]()
+                        for l in self.conceptLinks { existingLinks[l.id] = l }
+                        
+                        var existingMemos = [UUID: GeneralMemo]()
+                        for m in self.memos { existingMemos[m.id] = m }
+                        
+                        var existingMovies = [UUID: Movie]()
+                        for m in self.movies { existingMovies[m.id] = m }
 
-                // Import
-                var docMap = [UUID: Document]()
-                var insertedLogIds = Set<UUID>()
-                for b in backup.documents ?? [] {
-                    let uuid = b.id?.uuid ?? UUID()
-                    let doc: Document
-                    if let existing = existingDocs[uuid] {
-                        doc = existing
-                        doc.title = b.title ?? "Untitled"
-                        doc.totalPages = b.totalPages ?? 0
-                        doc.targetDate = b.targetDate ?? Date()
-                        doc.difficulty = b.difficulty
-                        doc.link = b.link
-                        doc.orderIndex = b.orderIndex ?? 0
-                        doc.tags = b.tags ?? []
-                    } else {
-                        doc = Document(title: b.title ?? "Untitled", totalPages: b.totalPages ?? 0, targetDate: b.targetDate ?? Date(), difficulty: b.difficulty, link: b.link, orderIndex: b.orderIndex ?? 0, tags: b.tags ?? [])
-                        doc.id = uuid
-                        modelContext.insert(doc)
-                    }
-                    docMap[uuid] = doc
-                    
-                    for p in b.progressLogs ?? [] {
-                        let pUuid = p.id?.uuid ?? UUID()
-                        if insertedLogIds.contains(pUuid) { continue }
-                        insertedLogIds.insert(pUuid)
+                        var docMap = [UUID: Document]()
+                        var insertedLogIds = Set<UUID>()
+                        for b in backup.documents ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            let doc: Document
+                            if let existing = existingDocs[uuid] {
+                                doc = existing
+                                doc.title = b.title ?? "Untitled"
+                                doc.totalPages = b.totalPages ?? 0
+                                doc.targetDate = b.targetDate ?? Date()
+                                doc.difficulty = b.difficulty
+                                doc.link = b.link
+                                doc.orderIndex = b.orderIndex ?? 0
+                                doc.tags = b.tags ?? []
+                            } else {
+                                doc = Document(title: b.title ?? "Untitled", totalPages: b.totalPages ?? 0, targetDate: b.targetDate ?? Date(), difficulty: b.difficulty, link: b.link, orderIndex: b.orderIndex ?? 0, tags: b.tags ?? [])
+                                doc.id = uuid
+                                self.modelContext.insert(doc)
+                            }
+                            docMap[uuid] = doc
+                            
+                            for p in b.progressLogs ?? [] {
+                                let pUuid = p.id?.uuid ?? UUID()
+                                if insertedLogIds.contains(pUuid) { continue }
+                                insertedLogIds.insert(pUuid)
+                                
+                                let log: ProgressLog
+                                if let existing = existingLogs[pUuid] {
+                                    log = existing
+                                    log.date = p.date ?? Date()
+                                    log.page = p.page ?? 0
+                                    log.topic = p.topic ?? ""
+                                    log.satisfaction = p.satisfaction
+                                } else {
+                                    log = ProgressLog(date: p.date ?? Date(), page: p.page ?? 0, topic: p.topic ?? "", satisfaction: p.satisfaction)
+                                    log.id = pUuid
+                                    log.document = doc
+                                    self.modelContext.insert(log)
+                                }
+                            }
+                        }
                         
-                        let log: ProgressLog
-                        if let existing = existingLogs[pUuid] {
-                            log = existing
-                            log.date = p.date ?? Date()
-                            log.page = p.page ?? 0
-                            log.topic = p.topic ?? ""
-                            log.satisfaction = p.satisfaction
-                        } else {
-                            log = ProgressLog(date: p.date ?? Date(), page: p.page ?? 0, topic: p.topic ?? "", satisfaction: p.satisfaction)
-                            log.id = pUuid
-                            log.document = doc
-                            modelContext.insert(log)
+                        for b in backup.progressLogs ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if insertedLogIds.contains(uuid) { continue }
+                            insertedLogIds.insert(uuid)
+                            
+                            let log: ProgressLog
+                            if let existing = existingLogs[uuid] {
+                                log = existing
+                                log.date = b.date ?? Date()
+                                log.page = b.page ?? 0
+                                log.topic = b.topic ?? ""
+                                log.satisfaction = b.satisfaction
+                                if let docId = b.documentId?.uuid, let doc = docMap[docId] {
+                                    log.document = doc
+                                }
+                            } else {
+                                log = ProgressLog(date: b.date ?? Date(), page: b.page ?? 0, topic: b.topic ?? "", satisfaction: b.satisfaction)
+                                log.id = uuid
+                                if let docId = b.documentId?.uuid { log.document = docMap[docId] }
+                                self.modelContext.insert(log)
+                            }
                         }
-                    }
-                }
-                
-                for b in backup.progressLogs ?? [] {
-                    let uuid = b.id?.uuid ?? UUID()
-                    if insertedLogIds.contains(uuid) { continue }
-                    insertedLogIds.insert(uuid)
-                    
-                    let log: ProgressLog
-                    if let existing = existingLogs[uuid] {
-                        log = existing
-                        log.date = b.date ?? Date()
-                        log.page = b.page ?? 0
-                        log.topic = b.topic ?? ""
-                        log.satisfaction = b.satisfaction
-                        if let docId = b.documentId?.uuid, let doc = docMap[docId] {
-                            log.document = doc
+                        
+                        for b in backup.todos ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if let existing = existingTodos[uuid] {
+                                existing.text = b.text ?? ""
+                                existing.completed = b.completed ?? false
+                                existing.status = b.status ?? "Todo"
+                                existing.orderIndex = b.orderIndex ?? 0
+                                existing.deadline = b.deadline
+                                existing.isImportant = b.isImportant ?? false
+                            } else {
+                                let todo = Todo(text: b.text ?? "", completed: b.completed ?? false, status: b.status ?? "Todo", orderIndex: b.orderIndex ?? 0, deadline: b.deadline, isImportant: b.isImportant ?? false)
+                                todo.id = uuid
+                                self.modelContext.insert(todo)
+                            }
                         }
-                    } else {
-                        log = ProgressLog(date: b.date ?? Date(), page: b.page ?? 0, topic: b.topic ?? "", satisfaction: b.satisfaction)
-                        log.id = uuid
-                        if let docId = b.documentId?.uuid { log.document = docMap[docId] }
-                        modelContext.insert(log)
-                    }
-                }
-                
-                for b in backup.todos ?? [] {
-                    let uuid = b.id?.uuid ?? UUID()
-                    if let existing = existingTodos[uuid] {
-                        existing.text = b.text ?? ""
-                        existing.completed = b.completed ?? false
-                        existing.status = b.status ?? "Todo"
-                    } else {
-                        let todo = Todo(text: b.text ?? "", completed: b.completed ?? false, status: b.status ?? "Todo")
-                        todo.id = uuid
-                        modelContext.insert(todo)
-                    }
-                }
-                
-                for b in backup.papers ?? [] {
-                    let uuid = b.id?.uuid ?? UUID()
-                    if let existing = existingPapers[uuid] {
-                        existing.title = b.title ?? "Untitled"
-                        existing.url = b.url ?? ""
-                        existing.status = b.status ?? "Not Started"
-                        existing.tags = b.tags ?? []
-                    } else {
-                        let paper = Paper(title: b.title ?? "Untitled", url: b.url ?? "", status: b.status ?? "Not Started", tags: b.tags ?? [])
-                        paper.id = uuid
-                        modelContext.insert(paper)
-                    }
-                }
-                
-                var nodeMap = [UUID: ConceptNode]()
-                for b in backup.conceptNodes ?? [] {
-                    let uuid = b.id?.uuid ?? UUID()
-                    let node: ConceptNode
-                    if let existing = existingNodes[uuid] {
-                        node = existing
-                        node.title = b.title ?? "Untitled"
-                        node.shortName = b.shortName
-                        node.content = b.content ?? ""
-                        node.x = b.x ?? 0.0
-                        node.y = b.y ?? 0.0
-                    } else {
-                        node = ConceptNode(title: b.title ?? "Untitled", shortName: b.shortName, content: b.content ?? "")
-                        node.id = uuid
-                        modelContext.insert(node)
-                    }
-                    nodeMap[uuid] = node
-                }
-                
-                for b in backup.conceptLinks ?? [] {
-                    let uuid = b.id?.uuid ?? UUID()
-                    if let existing = existingLinks[uuid] {
-                        if let sId = b.sourceId?.uuid, let tId = b.targetId?.uuid, let src = nodeMap[sId], let tgt = nodeMap[tId] {
-                            existing.source = src
-                            existing.target = tgt
+                        
+                        for b in backup.papers ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if let existing = existingPapers[uuid] {
+                                existing.title = b.title ?? "Untitled"
+                                existing.url = b.url ?? ""
+                                existing.status = b.status ?? "Not Started"
+                                existing.tags = b.tags ?? []
+                            } else {
+                                let paper = Paper(title: b.title ?? "Untitled", url: b.url ?? "", status: b.status ?? "Not Started", tags: b.tags ?? [])
+                                paper.id = uuid
+                                self.modelContext.insert(paper)
+                            }
                         }
-                    } else {
-                        if let sId = b.sourceId?.uuid, let tId = b.targetId?.uuid, let src = nodeMap[sId], let tgt = nodeMap[tId] {
-                            let link = ConceptLink(source: src, target: tgt)
-                            link.id = uuid
-                            modelContext.insert(link)
+                        
+                        var nodeMap = [UUID: ConceptNode]()
+                        for b in backup.conceptNodes ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            let node: ConceptNode
+                            if let existing = existingNodes[uuid] {
+                                node = existing
+                                node.title = b.title ?? "Untitled"
+                                node.shortName = b.shortName
+                                node.content = b.content ?? ""
+                                node.x = b.x ?? 0.0
+                                node.y = b.y ?? 0.0
+                            } else {
+                                node = ConceptNode(title: b.title ?? "Untitled", shortName: b.shortName, content: b.content ?? "")
+                                node.id = uuid
+                                self.modelContext.insert(node)
+                            }
+                            nodeMap[uuid] = node
                         }
+                        
+                        for b in backup.conceptLinks ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if let existing = existingLinks[uuid] {
+                                if let sId = b.sourceId?.uuid, let tId = b.targetId?.uuid, let src = nodeMap[sId], let tgt = nodeMap[tId] {
+                                    existing.source = src
+                                    existing.target = tgt
+                                }
+                            } else {
+                                if let sId = b.sourceId?.uuid, let tId = b.targetId?.uuid, let src = nodeMap[sId], let tgt = nodeMap[tId] {
+                                    let link = ConceptLink(source: src, target: tgt)
+                                    link.id = uuid
+                                    self.modelContext.insert(link)
+                                }
+                            }
+                        }
+                        
+                        for b in backup.memos ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if let existing = existingMemos[uuid] {
+                                existing.text = b.text ?? ""
+                                existing.tabIndex = b.tabIndex ?? 0
+                                existing.tabName = b.tabName
+                            } else {
+                                let memo = GeneralMemo(text: b.text ?? "", tabIndex: b.tabIndex ?? 0, tabName: b.tabName)
+                                memo.id = uuid
+                                self.modelContext.insert(memo)
+                            }
+                        }
+                        
+                        for b in backup.movies ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            
+                            var finalImagePath = b.imagePath
+                            if let data = b.imageData {
+                                let filename = UUID().uuidString + ".jpg"
+                                let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)
+                                do {
+                                    try data.write(to: fileURL)
+                                    finalImagePath = filename
+                                } catch {
+                                    print("Error saving imported image: \(error)")
+                                }
+                            }
+                            
+                            if let existing = existingMovies[uuid] {
+                                existing.title = b.title ?? "Untitled"
+                                existing.director = b.director ?? ""
+                                existing.rating = b.rating ?? 0.0
+                                existing.review = b.review ?? ""
+                                if finalImagePath != nil { existing.imagePath = finalImagePath }
+                                existing.tags = b.tags ?? []
+                                existing.orderIndex = b.orderIndex ?? 0
+                            } else {
+                                let movie = Movie(title: b.title ?? "Untitled", director: b.director ?? "", rating: b.rating ?? 0.0, review: b.review ?? "", imagePath: finalImagePath, tags: b.tags ?? [], orderIndex: b.orderIndex ?? 0)
+                                movie.id = uuid
+                                self.modelContext.insert(movie)
+                            }
+                        }
+                        
+                        do {
+                            try self.modelContext.save()
+                            self.alertMessage = "Imported successfully."
+                        } catch {
+                            self.alertMessage = "Failed to save to database: \(error.localizedDescription)"
+                        }
+                        self.showingAlert = true
                     }
+                } catch let DecodingError.dataCorrupted(context) {
+                    await MainActor.run { self.alertMessage = "Data corrupted: \(context.debugDescription)"; self.showingAlert = true }
+                } catch let DecodingError.keyNotFound(key, context) {
+                    await MainActor.run { self.alertMessage = "Missing key '\(key.stringValue)' at \(context.codingPath.map(\.stringValue).joined(separator: "."))"; self.showingAlert = true }
+                } catch let DecodingError.typeMismatch(type, context) {
+                    await MainActor.run { self.alertMessage = "Type mismatch for '\(context.codingPath.last?.stringValue ?? "unknown")'. Expected \(type)."; self.showingAlert = true }
+                } catch let DecodingError.valueNotFound(type, context) {
+                    await MainActor.run { self.alertMessage = "Value not found for '\(context.codingPath.last?.stringValue ?? "unknown")'. Expected \(type)."; self.showingAlert = true }
+                } catch {
+                    await MainActor.run { self.alertMessage = "Failed to import JSON: \(error.localizedDescription)"; self.showingAlert = true }
                 }
-                
-                for b in backup.memos ?? [] {
-                    let uuid = b.id?.uuid ?? UUID()
-                    if let existing = existingMemos[uuid] {
-                        existing.text = b.text ?? ""
-                        existing.tabIndex = b.tabIndex ?? 0
-                        existing.tabName = b.tabName
-                    } else {
-                        let memo = GeneralMemo(text: b.text ?? "", tabIndex: b.tabIndex ?? 0, tabName: b.tabName)
-                        memo.id = uuid
-                        modelContext.insert(memo)
-                    }
-                }
-                
-                try modelContext.save()
-                alertMessage = "Imported successfully.\nFound keys: \(foundKeys)\nLoaded Books: \(backup.documents?.count ?? 0), Memos: \(backup.memos?.count ?? 0), Papers: \(backup.papers?.count ?? 0)\(debugInfo)"
-            } catch let DecodingError.dataCorrupted(context) {
-                alertMessage = "Data corrupted: \(context.debugDescription)"
-            } catch let DecodingError.keyNotFound(key, context) {
-                alertMessage = "Missing key '\(key.stringValue)' at \(context.codingPath.map(\.stringValue).joined(separator: "."))"
-            } catch let DecodingError.typeMismatch(type, context) {
-                alertMessage = "Type mismatch for '\(context.codingPath.last?.stringValue ?? "unknown")'. Expected \(type)."
-            } catch let DecodingError.valueNotFound(type, context) {
-                alertMessage = "Value not found for '\(context.codingPath.last?.stringValue ?? "unknown")'. Expected \(type)."
-            } catch {
-                alertMessage = "Failed to import JSON: \(error.localizedDescription)"
             }
-            showingAlert = true
         }
 }
 }

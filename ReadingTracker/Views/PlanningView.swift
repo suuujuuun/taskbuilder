@@ -7,15 +7,18 @@ struct PlanningView: View {
     @Query private var memos: [GeneralMemo]
     
     @State private var newTodoText = ""
+    @State private var newTodoDeadline: Date? = nil
     @State private var selectedTab = "All"
-    let tabs = ["All", "General", "Work", "Study", "Personal"]
+    let tabs = ["All", "Important", "General", "Work", "Study", "Personal"]
     
     var filteredTodos: [Todo] {
-        if selectedTab == "All" {
-            return todos
-        } else {
-            return todos.filter { $0.status == selectedTab }
+        var result = todos
+        if selectedTab == "Important" {
+            result = todos.filter { $0.isImportant }
+        } else if selectedTab != "All" {
+            result = todos.filter { $0.status == selectedTab }
         }
+        return result.sorted { $0.orderIndex < $1.orderIndex }
     }
     
     var body: some View {
@@ -29,6 +32,21 @@ struct PlanningView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
                         .onSubmit { addTodo() }
+                        
+                    if let deadline = newTodoDeadline {
+                        DatePicker("", selection: Binding(get: { deadline }, set: { newTodoDeadline = $0 }), displayedComponents: .date)
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            .frame(width: 100)
+                        Button(action: { newTodoDeadline = nil }) {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
+                        }.buttonStyle(.plain)
+                    } else {
+                        Button(action: { newTodoDeadline = Date() }) {
+                            Image(systemName: "calendar.badge.plus").foregroundColor(.gray)
+                        }.buttonStyle(.plain)
+                    }
+                    
                     Button(action: addTodo) { Image(systemName: "plus") }
                         .disabled(newTodoText.isEmpty)
                 }
@@ -53,11 +71,64 @@ struct PlanningView: View {
                                     try? modelContext.save()
                                 }
                             ))
-                            Text(todo.text)
-                                .strikethrough(todo.completed, color: .secondary)
-                                .foregroundColor(todo.completed ? .secondary : .primary)
+                            .labelsHidden()
+                            
+                            TextField("Task", text: Binding(
+                                get: { todo.text },
+                                set: { newValue in
+                                    todo.text = newValue
+                                    try? modelContext.save()
+                                }
+                            ))
+                            .textFieldStyle(.plain)
+                            .strikethrough(todo.completed, color: .secondary)
+                            .foregroundColor(todo.completed ? .secondary : .primary)
                             
                             Spacer()
+                            
+                            if let deadline = todo.deadline {
+                                Text(deadline, format: .dateTime.month().day())
+                                    .font(.caption)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(deadlineColor(deadline).opacity(0.1))
+                                    .foregroundColor(deadlineColor(deadline))
+                                    .cornerRadius(4)
+                                    
+                                Button(action: {
+                                    todo.deadline = nil
+                                    try? modelContext.save()
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            
+                            Menu {
+                                ForEach(["General", "Work", "Study", "Personal"], id: \.self) { status in
+                                    Button(status) {
+                                        todo.status = status
+                                        try? modelContext.save()
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "arrow.right.square")
+                                    .foregroundColor(.gray)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .tint(.gray)
+                            .fixedSize()
+                            
+                            Button(action: {
+                                todo.isImportant.toggle()
+                                try? modelContext.save()
+                            }) {
+                                Image(systemName: todo.isImportant ? "star.fill" : "star")
+                                    .foregroundColor(todo.isImportant ? .yellow : .gray)
+                            }
+                            .buttonStyle(.plain)
                             
                             Button(action: {
                                 withAnimation {
@@ -70,8 +141,10 @@ struct PlanningView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                        .padding(.vertical, 2)
                     }
                     .onDelete(perform: deleteTodos)
+                    .onMove(perform: moveTodos)
                 }
             }
             .frame(minWidth: 300)
@@ -92,11 +165,29 @@ struct PlanningView: View {
     
     private func addTodo() {
         guard !newTodoText.isEmpty else { return }
-        let currentStatus = selectedTab == "All" ? "General" : selectedTab
-        let todo = Todo(text: newTodoText, status: currentStatus)
+        let currentStatus = (selectedTab == "All" || selectedTab == "Important") ? "General" : selectedTab
+        let maxOrder = todos.map { $0.orderIndex }.max() ?? -1
+        let todo = Todo(text: newTodoText, status: currentStatus, orderIndex: maxOrder + 1, deadline: newTodoDeadline, isImportant: selectedTab == "Important")
         modelContext.insert(todo)
         try? modelContext.save()
         newTodoText = ""
+        newTodoDeadline = nil
+    }
+    
+    private func deadlineColor(_ date: Date) -> Color {
+        let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: date)).day ?? 0
+        if days < 0 { return .red }
+        if days <= 3 { return .orange }
+        return .secondary
+    }
+    
+    private func moveTodos(from source: IndexSet, to destination: Int) {
+        var revisedItems = filteredTodos
+        revisedItems.move(fromOffsets: source, toOffset: destination)
+        for (index, item) in revisedItems.enumerated() {
+            item.orderIndex = index
+        }
+        try? modelContext.save()
     }
     
     private func deleteTodos(offsets: IndexSet) {

@@ -51,11 +51,39 @@ final class Todo {
     var text: String
     var completed: Bool
     var status: String = "Todo"
+    var orderIndex: Int = 0
+    var deadline: Date?
+    var isImportant: Bool = false
     
-    init(text: String, completed: Bool = false, status: String = "Todo") {
+    init(text: String, completed: Bool = false, status: String = "Todo", orderIndex: Int = 0, deadline: Date? = nil, isImportant: Bool = false) {
         self.text = text
         self.completed = completed
         self.status = status
+        self.orderIndex = orderIndex
+        self.deadline = deadline
+        self.isImportant = isImportant
+    }
+}
+
+@Model
+final class Movie {
+    var id: UUID = UUID()
+    var title: String
+    var director: String
+    var rating: Double
+    var review: String
+    var imagePath: String?
+    var tags: [String] = []
+    var orderIndex: Int = 0
+    
+    init(title: String, director: String = "", rating: Double = 0.0, review: String = "", imagePath: String? = nil, tags: [String] = [], orderIndex: Int = 0) {
+        self.title = title
+        self.director = director
+        self.rating = rating
+        self.review = review
+        self.imagePath = imagePath
+        self.tags = tags
+        self.orderIndex = orderIndex
     }
 }
 
@@ -162,9 +190,10 @@ struct BackupData: Codable {
     var conceptNodes: [BackupConceptNode]?
     var conceptLinks: [BackupConceptLink]?
     var memos: [BackupMemo]?
+    var movies: [BackupMovie]?
     var tagOrder: String?
 
-    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, tagOrder: String? = nil) {
+    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, movies: [BackupMovie]? = nil, tagOrder: String? = nil) {
         self.documents = documents
         self.progressLogs = progressLogs
         self.todos = todos
@@ -172,6 +201,7 @@ struct BackupData: Codable {
         self.conceptNodes = conceptNodes
         self.conceptLinks = conceptLinks
         self.memos = memos
+        self.movies = movies
         self.tagOrder = tagOrder
     }
 
@@ -208,6 +238,7 @@ struct BackupData: Codable {
         conceptNodes = decodeArray(["conceptNodes", "concepts"])
         conceptLinks = decodeArray(["conceptLinks"])
         memos = decodeArray(["memos", "generalMemos", "notes", "quotes"])
+        movies = decodeArray(["movies"])
         
         if let k = DynamicCodingKeys(stringValue: "tagOrder") {
             tagOrder = try? container.decodeIfPresent(String.self, forKey: k)
@@ -235,6 +266,7 @@ struct BackupData: Codable {
         if let k = DynamicCodingKeys(stringValue: "conceptNodes") { try container.encodeIfPresent(conceptNodes, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "conceptLinks") { try container.encodeIfPresent(conceptLinks, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "memos") { try container.encodeIfPresent(memos, forKey: k) }
+        if let k = DynamicCodingKeys(stringValue: "movies") { try container.encodeIfPresent(movies, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "tagOrder") { try container.encodeIfPresent(tagOrder, forKey: k) }
     }
 }
@@ -308,6 +340,21 @@ struct BackupTodo: Codable {
     var text: String?
     var completed: Bool?
     var status: String?
+    var orderIndex: Int?
+    var deadline: Date?
+    var isImportant: Bool?
+}
+
+struct BackupMovie: Codable {
+    var id: FlexibleID?
+    var title: String?
+    var director: String?
+    var rating: Double?
+    var review: String?
+    var imagePath: String?
+    var tags: [String]?
+    var imageData: Data?
+    var orderIndex: Int?
 }
 
 struct BackupPaper: Codable {

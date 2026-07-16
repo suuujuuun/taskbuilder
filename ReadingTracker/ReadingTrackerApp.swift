@@ -11,7 +11,8 @@ struct ReadingTrackerApp: App {
             Paper.self,
             ConceptNode.self,
             ConceptLink.self,
-            GeneralMemo.self
+            GeneralMemo.self,
+            Movie.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
