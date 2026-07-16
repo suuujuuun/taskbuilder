@@ -14,6 +14,7 @@ struct ContentView: View {
     @Query private var conceptLinks: [ConceptLink]
     @Query private var memos: [GeneralMemo]
     @Query private var movies: [Movie]
+    @Query private var businesses: [Business]
     
     @AppStorage("tagOrder") private var tagOrderString: String = ""
     
@@ -27,6 +28,7 @@ struct ContentView: View {
         case planning
         case graph
         case movies
+        case business
     }
     
     var body: some View {
@@ -50,6 +52,9 @@ struct ContentView: View {
                 NavigationLink(value: AppView.movies) {
                     Label("Movies", systemImage: "film")
                 }
+                NavigationLink(value: AppView.business) {
+                    Label("Business", systemImage: "briefcase")
+                }
             }
             .navigationTitle("Tracker")
             .listStyle(.sidebar)
@@ -67,6 +72,8 @@ struct ContentView: View {
                 KnowledgeGraphView()
             case .movies:
                 MoviesView()
+            case .business:
+                BusinessView()
             default:
                 Text("Select a view from the sidebar")
                     .font(.largeTitle)
@@ -165,6 +172,10 @@ struct ContentView: View {
                 MovieMeta(id: m.id, title: m.title, director: m.director, rating: m.rating, review: m.review, imagePath: m.imagePath, tags: m.tags, orderIndex: m.orderIndex)
             }
             
+            let safeBusinesses = businesses.filter { !$0.isDeleted }.map { b in
+                BackupBusiness(id: FlexibleID(uuid: b.id), name: b.name, plan: b.plan, targetGoal: b.targetGoal, targetRevenue: b.targetRevenue, achievementRate: b.achievementRate, feasibility: b.feasibility, targetAudience: b.targetAudience, competitors: b.competitors, businessModel: b.businessModel, executiveSummary: b.executiveSummary, marketingStrategy: b.marketingStrategy, swotAnalysis: b.swotAnalysis, budget: b.budget, timeline: b.timeline, riskManagement: b.riskManagement, teamStructure: b.teamStructure, kpis: b.kpis, actionItems: b.actionItems, targetMarketSize: b.targetMarketSize, coreFeatures: b.coreFeatures, websiteURL: b.websiteURL, githubURL: b.githubURL, techStack: b.techStack, architectureLogic: b.architectureLogic, referenceLinks: b.referenceLinks, currentRevenue: b.currentRevenue, contacts: b.contacts, contactList: b.contactList, todoList: b.todoList, orderIndex: b.orderIndex, tags: b.tags)
+            }
+            
             let tOrder = tagOrderString
             let docsDir = getDocumentsDirectory()
             
@@ -182,7 +193,7 @@ struct ContentView: View {
                 
                 let backup = BackupData(
                     documents: safeDocs, progressLogs: safeLogs, todos: safeTodos, papers: safePapers,
-                    conceptNodes: safeNodes, conceptLinks: safeLinks, memos: safeMemos, movies: moviesBackup, tagOrder: tOrder
+                    conceptNodes: safeNodes, conceptLinks: safeLinks, memos: safeMemos, movies: moviesBackup, businesses: safeBusinesses, tagOrder: tOrder
                 )
                 
                 let encoder = JSONEncoder()
@@ -262,6 +273,9 @@ struct ContentView: View {
                         
                         var existingMovies = [UUID: Movie]()
                         for m in self.movies { existingMovies[m.id] = m }
+                        
+                        var existingBusinesses = [UUID: Business]()
+                        for b in self.businesses { existingBusinesses[b.id] = b }
 
                         var docMap = [UUID: Document]()
                         var insertedLogIds = Set<UUID>()
@@ -433,6 +447,47 @@ struct ContentView: View {
                                 let movie = Movie(title: b.title ?? "Untitled", director: b.director ?? "", rating: b.rating ?? 0.0, review: b.review ?? "", imagePath: finalImagePath, tags: b.tags ?? [], orderIndex: b.orderIndex ?? 0)
                                 movie.id = uuid
                                 self.modelContext.insert(movie)
+                            }
+                        }
+                        
+                        for b in backup.businesses ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if let existing = existingBusinesses[uuid] {
+                                existing.name = b.name ?? ""
+                                existing.plan = b.plan ?? ""
+                                existing.targetGoal = b.targetGoal ?? ""
+                                existing.targetRevenue = b.targetRevenue ?? ""
+                                existing.achievementRate = b.achievementRate ?? 0.0
+                                existing.feasibility = b.feasibility ?? 3
+                                existing.targetAudience = b.targetAudience ?? ""
+                                existing.competitors = b.competitors ?? ""
+                                existing.businessModel = b.businessModel ?? ""
+                                existing.executiveSummary = b.executiveSummary ?? ""
+                                existing.marketingStrategy = b.marketingStrategy ?? ""
+                                existing.swotAnalysis = b.swotAnalysis ?? ""
+                                existing.budget = b.budget ?? ""
+                                existing.timeline = b.timeline ?? ""
+                                existing.riskManagement = b.riskManagement ?? ""
+                                existing.teamStructure = b.teamStructure ?? ""
+                                existing.kpis = b.kpis ?? ""
+                                existing.actionItems = b.actionItems ?? ""
+                                existing.targetMarketSize = b.targetMarketSize ?? ""
+                                existing.coreFeatures = b.coreFeatures ?? ""
+                                existing.websiteURL = b.websiteURL ?? ""
+                                existing.githubURL = b.githubURL ?? ""
+                                existing.techStack = b.techStack ?? ""
+                                existing.architectureLogic = b.architectureLogic ?? ""
+                                existing.referenceLinks = b.referenceLinks ?? ""
+                                existing.currentRevenue = b.currentRevenue ?? ""
+                                existing.contacts = b.contacts ?? ""
+                                existing.contactList = b.contactList ?? []
+                                existing.todoList = b.todoList ?? []
+                                existing.tags = b.tags ?? []
+                                existing.orderIndex = b.orderIndex ?? 0
+                            } else {
+                                let business = Business(name: b.name ?? "", plan: b.plan ?? "", targetGoal: b.targetGoal ?? "", targetRevenue: b.targetRevenue ?? "", currentRevenue: b.currentRevenue ?? "", achievementRate: b.achievementRate ?? 0.0, feasibility: b.feasibility ?? 3, targetAudience: b.targetAudience ?? "", competitors: b.competitors ?? "", businessModel: b.businessModel ?? "", executiveSummary: b.executiveSummary ?? "", marketingStrategy: b.marketingStrategy ?? "", swotAnalysis: b.swotAnalysis ?? "", budget: b.budget ?? "", timeline: b.timeline ?? "", riskManagement: b.riskManagement ?? "", teamStructure: b.teamStructure ?? "", kpis: b.kpis ?? "", actionItems: b.actionItems ?? "", targetMarketSize: b.targetMarketSize ?? "", coreFeatures: b.coreFeatures ?? "", websiteURL: b.websiteURL ?? "", githubURL: b.githubURL ?? "", techStack: b.techStack ?? "", architectureLogic: b.architectureLogic ?? "", referenceLinks: b.referenceLinks ?? "", contacts: b.contacts ?? "", contactList: b.contactList ?? [], todoList: b.todoList ?? [], orderIndex: b.orderIndex ?? 0, tags: b.tags ?? [])
+                                business.id = uuid
+                                self.modelContext.insert(business)
                             }
                         }
                         

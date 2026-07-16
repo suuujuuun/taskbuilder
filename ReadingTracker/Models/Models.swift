@@ -101,6 +101,89 @@ final class GeneralMemo {
     }
 }
 
+struct BusinessTodo: Codable, Identifiable, Hashable {
+    var id: UUID = UUID()
+    var title: String
+    var isCompleted: Bool = false
+}
+
+struct BusinessContact: Codable, Identifiable, Hashable {
+    var id: UUID = UUID()
+    var name: String
+    var info: String
+    var progress: String = ""
+}
+
+@Model
+final class Business {
+    var id: UUID = UUID()
+    var name: String
+    var plan: String
+    var targetGoal: String
+    var targetRevenue: String
+    var achievementRate: Double
+    var feasibility: Int
+    var targetAudience: String
+    var competitors: String
+    var businessModel: String
+    var executiveSummary: String
+    var marketingStrategy: String
+    var swotAnalysis: String
+    var budget: String
+    var timeline: String
+    var riskManagement: String
+    var teamStructure: String
+    var kpis: String
+    var actionItems: String = ""
+    var targetMarketSize: String = ""
+    var coreFeatures: String = ""
+    var websiteURL: String = ""
+    var githubURL: String = ""
+    var techStack: String = ""
+    var architectureLogic: String = ""
+    var referenceLinks: String = ""
+    var currentRevenue: String = ""
+    var contacts: String = ""
+    var contactList: [BusinessContact] = []
+    var todoList: [BusinessTodo] = []
+    var orderIndex: Int = 0
+    var tags: [String] = []
+    
+    init(name: String = "", plan: String = "", targetGoal: String = "", targetRevenue: String = "", currentRevenue: String = "", achievementRate: Double = 0.0, feasibility: Int = 3, targetAudience: String = "", competitors: String = "", businessModel: String = "", executiveSummary: String = "", marketingStrategy: String = "", swotAnalysis: String = "", budget: String = "", timeline: String = "", riskManagement: String = "", teamStructure: String = "", kpis: String = "", actionItems: String = "", targetMarketSize: String = "", coreFeatures: String = "", websiteURL: String = "", githubURL: String = "", techStack: String = "", architectureLogic: String = "", referenceLinks: String = "", contacts: String = "", contactList: [BusinessContact] = [], todoList: [BusinessTodo] = [], orderIndex: Int = 0, tags: [String] = []) {
+        self.name = name
+        self.plan = plan
+        self.targetGoal = targetGoal
+        self.targetRevenue = targetRevenue
+        self.currentRevenue = currentRevenue
+        self.achievementRate = achievementRate
+        self.feasibility = feasibility
+        self.targetAudience = targetAudience
+        self.competitors = competitors
+        self.businessModel = businessModel
+        self.executiveSummary = executiveSummary
+        self.marketingStrategy = marketingStrategy
+        self.swotAnalysis = swotAnalysis
+        self.budget = budget
+        self.timeline = timeline
+        self.riskManagement = riskManagement
+        self.teamStructure = teamStructure
+        self.kpis = kpis
+        self.actionItems = actionItems
+        self.targetMarketSize = targetMarketSize
+        self.coreFeatures = coreFeatures
+        self.websiteURL = websiteURL
+        self.githubURL = githubURL
+        self.techStack = techStack
+        self.architectureLogic = architectureLogic
+        self.referenceLinks = referenceLinks
+        self.contacts = contacts
+        self.contactList = contactList
+        self.todoList = todoList
+        self.orderIndex = orderIndex
+        self.tags = tags
+    }
+}
+
 @Model
 final class Paper {
     var id: UUID = UUID()
@@ -191,9 +274,10 @@ struct BackupData: Codable {
     var conceptLinks: [BackupConceptLink]?
     var memos: [BackupMemo]?
     var movies: [BackupMovie]?
+    var businesses: [BackupBusiness]?
     var tagOrder: String?
 
-    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, movies: [BackupMovie]? = nil, tagOrder: String? = nil) {
+    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, movies: [BackupMovie]? = nil, businesses: [BackupBusiness]? = nil, tagOrder: String? = nil) {
         self.documents = documents
         self.progressLogs = progressLogs
         self.todos = todos
@@ -202,6 +286,7 @@ struct BackupData: Codable {
         self.conceptLinks = conceptLinks
         self.memos = memos
         self.movies = movies
+        self.businesses = businesses
         self.tagOrder = tagOrder
     }
 
@@ -239,6 +324,7 @@ struct BackupData: Codable {
         conceptLinks = decodeArray(["conceptLinks"])
         memos = decodeArray(["memos", "generalMemos", "notes", "quotes"])
         movies = decodeArray(["movies"])
+        businesses = decodeArray(["businesses", "business"])
         
         if let k = DynamicCodingKeys(stringValue: "tagOrder") {
             tagOrder = try? container.decodeIfPresent(String.self, forKey: k)
@@ -267,6 +353,7 @@ struct BackupData: Codable {
         if let k = DynamicCodingKeys(stringValue: "conceptLinks") { try container.encodeIfPresent(conceptLinks, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "memos") { try container.encodeIfPresent(memos, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "movies") { try container.encodeIfPresent(movies, forKey: k) }
+        if let k = DynamicCodingKeys(stringValue: "businesses") { try container.encodeIfPresent(businesses, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "tagOrder") { try container.encodeIfPresent(tagOrder, forKey: k) }
     }
 }
@@ -355,6 +442,41 @@ struct BackupMovie: Codable {
     var tags: [String]?
     var imageData: Data?
     var orderIndex: Int?
+}
+
+struct BackupBusiness: Codable {
+    var id: FlexibleID?
+    var name: String?
+    var plan: String?
+    var targetGoal: String?
+    var targetRevenue: String?
+    var achievementRate: Double?
+    var feasibility: Int?
+    var targetAudience: String?
+    var competitors: String?
+    var businessModel: String?
+    var executiveSummary: String?
+    var marketingStrategy: String?
+    var swotAnalysis: String?
+    var budget: String?
+    var timeline: String?
+    var riskManagement: String?
+    var teamStructure: String?
+    var kpis: String?
+    var actionItems: String?
+    var targetMarketSize: String?
+    var coreFeatures: String?
+    var websiteURL: String?
+    var githubURL: String?
+    var techStack: String?
+    var architectureLogic: String?
+    var referenceLinks: String?
+    var currentRevenue: String?
+    var contacts: String?
+    var contactList: [BusinessContact]?
+    var todoList: [BusinessTodo]?
+    var orderIndex: Int?
+    var tags: [String]?
 }
 
 struct BackupPaper: Codable {
