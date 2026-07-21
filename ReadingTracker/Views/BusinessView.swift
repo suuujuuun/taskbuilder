@@ -324,7 +324,7 @@ struct TechStackTagsView: View {
     @State private var newTag: String = ""
     
     var tags: [String] {
-        text.split(separator: ",").map { String($0.trimmingCharacters(in: .whitespacesAndNewlines)) }.filter { !$0.isEmpty }
+        text.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
     
     var body: some View {

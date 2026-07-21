@@ -380,7 +380,7 @@ struct AddPersonView: View {
             }
         }
         
-        let tags = tagsString.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let tags = tagsString.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let maxOrder = people.map { $0.orderIndex }.max() ?? -1
         
         let newPerson = Person(name: name, role: role, link: link, imagePath: imagePath, comment: comment, tags: tags, orderIndex: maxOrder + 1, isEnglish: isEnglish)
@@ -468,7 +468,7 @@ struct EditPersonView: View {
             }
         }
         
-        let tags = tagsString.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let tags = tagsString.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         person.tags = tags
         
         try? modelContext.save()

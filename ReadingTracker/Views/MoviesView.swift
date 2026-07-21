@@ -322,7 +322,7 @@ struct EditMovieView: View {
     }
     
     private func saveMovie() {
-        let tags = tagsString.split(separator: ",").map { String($0.trimmingCharacters(in: .whitespacesAndNewlines)) }.filter { !$0.isEmpty }
+        let tags = tagsString.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         
         if let movie = movie {
             movie.title = title
