@@ -15,13 +15,19 @@ struct ContentView: View {
     @Query private var memos: [GeneralMemo]
     @Query private var movies: [Movie]
     @Query private var businesses: [Business]
+    @Query private var diaries: [DiaryEntry]
+    @Query private var people: [Person]
+    @Query private var dailyTasks: [DailyTask]
+    @Query private var dailyTaskLogs: [DailyTaskLog]
     
+    @AppStorage("sidebarTabOrder") private var sidebarTabOrderString: String = ""
     @AppStorage("tagOrder") private var tagOrderString: String = ""
+    @State private var sidebarTabs: [AppView] = AppView.allCases
     
     @State private var showingAlert = false
     @State private var alertMessage = ""
     
-    enum AppView: Hashable {
+    enum AppView: String, Hashable, Codable, CaseIterable {
         case details
         case overview
         case papers
@@ -29,35 +35,57 @@ struct ContentView: View {
         case graph
         case movies
         case business
+        case diary
+        case people
+        case dailyTasks
+        
+        var title: String {
+            switch self {
+            case .details: return "Details"
+            case .overview: return "Overview"
+            case .papers: return "Papers"
+            case .planning: return "To-Do & Memo"
+            case .diary: return "Diary"
+            case .graph: return "Knowledge Graph"
+            case .movies: return "Movies"
+            case .business: return "Business"
+            case .people: return "People"
+            case .dailyTasks: return "Daily Study"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .details: return "list.bullet.rectangle.portrait"
+            case .overview: return "square.grid.2x2"
+            case .papers: return "doc.text"
+            case .planning: return "checkmark.square"
+            case .diary: return "book.pages"
+            case .graph: return "brain.head.profile"
+            case .movies: return "film"
+            case .business: return "briefcase"
+            case .people: return "person.2"
+            case .dailyTasks: return "checkmark.seal"
+            }
+        }
     }
     
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $selectedView) {
-                NavigationLink(value: AppView.details) {
-                    Label("Details", systemImage: "list.bullet.rectangle.portrait")
+                ForEach(sidebarTabs, id: \.self) { tab in
+                    NavigationLink(value: tab) {
+                        Label(tab.title, systemImage: tab.icon)
+                    }
                 }
-                NavigationLink(value: AppView.overview) {
-                    Label("Overview", systemImage: "square.grid.2x2")
-                }
-                NavigationLink(value: AppView.papers) {
-                    Label("Papers", systemImage: "doc.text")
-                }
-                NavigationLink(value: AppView.planning) {
-                    Label("To-Do & Memo", systemImage: "checkmark.square")
-                }
-                NavigationLink(value: AppView.graph) {
-                    Label("Knowledge Graph", systemImage: "brain.head.profile")
-                }
-                NavigationLink(value: AppView.movies) {
-                    Label("Movies", systemImage: "film")
-                }
-                NavigationLink(value: AppView.business) {
-                    Label("Business", systemImage: "briefcase")
+                .onMove { source, destination in
+                    sidebarTabs.move(fromOffsets: source, toOffset: destination)
+                    sidebarTabOrderString = sidebarTabs.map { $0.rawValue }.joined(separator: ",")
                 }
             }
             .navigationTitle("Tracker")
             .listStyle(.sidebar)
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             switch selectedView {
             case .details:
@@ -69,11 +97,17 @@ struct ContentView: View {
             case .planning:
                 PlanningView()
             case .graph:
-                KnowledgeGraphView()
+                KnowledgeGraphView(columnVisibility: $columnVisibility)
             case .movies:
                 MoviesView()
             case .business:
                 BusinessView()
+            case .diary:
+                DiaryView()
+            case .people:
+                PeopleView()
+            case .dailyTasks:
+                DailyStudyView()
             default:
                 Text("Select a view from the sidebar")
                     .font(.largeTitle)
@@ -91,7 +125,20 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .tint(.white)
         .toolbar {
-            ToolbarItemGroup {
+            ToolbarItem(placement: .navigation) {
+                Button(action: {
+                    if columnVisibility == .all {
+                        columnVisibility = .detailOnly
+                    } else {
+                        columnVisibility = .all
+                    }
+                }) {
+                    Image(systemName: "sidebar.left")
+                }
+                .help("Toggle Sidebar")
+            }
+            
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button("Import JSON") { importData() }
                 Button("Export JSON") { exportData() }
             }
@@ -100,6 +147,16 @@ struct ContentView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(alertMessage)
+        }
+        .onAppear {
+            let saved = sidebarTabOrderString.split(separator: ",").compactMap { AppView(rawValue: String($0)) }
+            var merged = saved
+            for view in AppView.allCases {
+                if !merged.contains(view) {
+                    merged.append(view)
+                }
+            }
+            sidebarTabs = merged
         }
     }
     
@@ -176,6 +233,38 @@ struct ContentView: View {
                 BackupBusiness(id: FlexibleID(uuid: b.id), name: b.name, plan: b.plan, targetGoal: b.targetGoal, targetRevenue: b.targetRevenue, achievementRate: b.achievementRate, feasibility: b.feasibility, targetAudience: b.targetAudience, competitors: b.competitors, businessModel: b.businessModel, executiveSummary: b.executiveSummary, marketingStrategy: b.marketingStrategy, swotAnalysis: b.swotAnalysis, budget: b.budget, timeline: b.timeline, riskManagement: b.riskManagement, teamStructure: b.teamStructure, kpis: b.kpis, actionItems: b.actionItems, targetMarketSize: b.targetMarketSize, coreFeatures: b.coreFeatures, websiteURL: b.websiteURL, githubURL: b.githubURL, techStack: b.techStack, architectureLogic: b.architectureLogic, referenceLinks: b.referenceLinks, currentRevenue: b.currentRevenue, contacts: b.contacts, contactList: b.contactList, todoList: b.todoList, orderIndex: b.orderIndex, tags: b.tags)
             }
             
+            let safeDiaries = diaries.filter { !$0.isDeleted }.map { d in
+                BackupDiaryEntry(id: FlexibleID(uuid: d.id), date: d.date, content: d.content, isHighlighted: d.isHighlighted)
+            }
+            
+            struct PersonMeta {
+                let id: UUID; let name: String; let role: String; let link: String
+                let imagePath: String?; let comment: String; let tags: [String]; let orderIndex: Int
+            }
+            
+            let peopleMeta = people.filter { !$0.isDeleted }.map { p in
+                PersonMeta(id: p.id, name: p.name, role: p.role, link: p.link, imagePath: p.imagePath, comment: p.comment, tags: p.tags, orderIndex: p.orderIndex)
+            }
+            
+            let safeDailyTasks = dailyTasks.filter { !$0.isDeleted }.map { t in
+                BackupDailyTask(id: FlexibleID(uuid: t.id), title: t.title, orderIndex: t.orderIndex, isActive: t.isActive, createdAt: t.createdAt)
+            }
+            
+            var taskMap = [PersistentIdentifier: UUID]()
+            for t in dailyTasks where !t.isDeleted { taskMap[t.persistentModelID] = t.id }
+            
+            let safeDailyTaskLogs = dailyTaskLogs.filter { !$0.isDeleted }.compactMap { l -> BackupDailyTaskLog? in
+                var tId: UUID? = nil
+                if let tProxy = l.task {
+                    if let tMappedId = taskMap[tProxy.persistentModelID] {
+                        tId = tMappedId
+                    } else {
+                        return nil
+                    }
+                }
+                return BackupDailyTaskLog(id: FlexibleID(uuid: l.id), logicalDate: l.logicalDate, isCompleted: l.isCompleted, taskId: tId.map { FlexibleID(uuid: $0) })
+            }
+            
             let tOrder = tagOrderString
             let docsDir = getDocumentsDirectory()
             
@@ -191,9 +280,19 @@ struct ContentView: View {
                     moviesBackup.append(BackupMovie(id: FlexibleID(uuid: m.id), title: m.title, director: m.director, rating: m.rating, review: m.review, imagePath: m.imagePath, tags: m.tags, imageData: imgData, orderIndex: m.orderIndex))
                 }
                 
+                var peopleBackup: [BackupPerson] = []
+                for p in peopleMeta {
+                    var imgData: Data? = nil
+                    if let path = p.imagePath {
+                        let fileURL = docsDir.appendingPathComponent(path)
+                        imgData = try? Data(contentsOf: fileURL)
+                    }
+                    peopleBackup.append(BackupPerson(id: FlexibleID(uuid: p.id), name: p.name, role: p.role, link: p.link, imagePath: p.imagePath, comment: p.comment, tags: p.tags, imageData: imgData, orderIndex: p.orderIndex))
+                }
+                
                 let backup = BackupData(
                     documents: safeDocs, progressLogs: safeLogs, todos: safeTodos, papers: safePapers,
-                    conceptNodes: safeNodes, conceptLinks: safeLinks, memos: safeMemos, movies: moviesBackup, businesses: safeBusinesses, tagOrder: tOrder
+                    conceptNodes: safeNodes, conceptLinks: safeLinks, memos: safeMemos, movies: moviesBackup, businesses: safeBusinesses, diaries: safeDiaries, people: peopleBackup, dailyTasks: safeDailyTasks, dailyTaskLogs: safeDailyTaskLogs, tagOrder: tOrder
                 )
                 
                 let encoder = JSONEncoder()
@@ -276,6 +375,18 @@ struct ContentView: View {
                         
                         var existingBusinesses = [UUID: Business]()
                         for b in self.businesses { existingBusinesses[b.id] = b }
+
+                        var existingDiaries = [UUID: DiaryEntry]()
+                        for d in self.diaries { existingDiaries[d.id] = d }
+                        
+                        var existingPeople = [UUID: Person]()
+                        for p in self.people { existingPeople[p.id] = p }
+
+                        var existingDailyTasks = [UUID: DailyTask]()
+                        for t in self.dailyTasks { existingDailyTasks[t.id] = t }
+
+                        var existingDailyTaskLogs = [UUID: DailyTaskLog]()
+                        for l in self.dailyTaskLogs { existingDailyTaskLogs[l.id] = l }
 
                         var docMap = [UUID: Document]()
                         var insertedLogIds = Set<UUID>()
@@ -488,6 +599,85 @@ struct ContentView: View {
                                 let business = Business(name: b.name ?? "", plan: b.plan ?? "", targetGoal: b.targetGoal ?? "", targetRevenue: b.targetRevenue ?? "", currentRevenue: b.currentRevenue ?? "", achievementRate: b.achievementRate ?? 0.0, feasibility: b.feasibility ?? 3, targetAudience: b.targetAudience ?? "", competitors: b.competitors ?? "", businessModel: b.businessModel ?? "", executiveSummary: b.executiveSummary ?? "", marketingStrategy: b.marketingStrategy ?? "", swotAnalysis: b.swotAnalysis ?? "", budget: b.budget ?? "", timeline: b.timeline ?? "", riskManagement: b.riskManagement ?? "", teamStructure: b.teamStructure ?? "", kpis: b.kpis ?? "", actionItems: b.actionItems ?? "", targetMarketSize: b.targetMarketSize ?? "", coreFeatures: b.coreFeatures ?? "", websiteURL: b.websiteURL ?? "", githubURL: b.githubURL ?? "", techStack: b.techStack ?? "", architectureLogic: b.architectureLogic ?? "", referenceLinks: b.referenceLinks ?? "", contacts: b.contacts ?? "", contactList: b.contactList ?? [], todoList: b.todoList ?? [], orderIndex: b.orderIndex ?? 0, tags: b.tags ?? [])
                                 business.id = uuid
                                 self.modelContext.insert(business)
+                            }
+                        }
+                        
+                        for b in backup.diaries ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if let existing = existingDiaries[uuid] {
+                                existing.date = b.date ?? Date()
+                                existing.content = b.content ?? ""
+                                existing.isHighlighted = b.isHighlighted ?? false
+                            } else {
+                                let entry = DiaryEntry(date: b.date ?? Date(), content: b.content ?? "", isHighlighted: b.isHighlighted ?? false)
+                                entry.id = uuid
+                                self.modelContext.insert(entry)
+                            }
+                        }
+                        
+                        for b in backup.people ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            
+                            var finalImagePath = b.imagePath
+                            if let data = b.imageData {
+                                let filename = UUID().uuidString + ".jpg"
+                                let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)
+                                do {
+                                    try data.write(to: fileURL)
+                                    finalImagePath = filename
+                                } catch {
+                                    print("Error saving imported image: \(error)")
+                                }
+                            }
+                            
+                            if let existing = existingPeople[uuid] {
+                                existing.name = b.name ?? ""
+                                existing.role = b.role ?? ""
+                                existing.link = b.link ?? ""
+                                if finalImagePath != nil { existing.imagePath = finalImagePath }
+                                existing.comment = b.comment ?? ""
+                                existing.tags = b.tags ?? []
+                                existing.orderIndex = b.orderIndex ?? 0
+                            } else {
+                                let person = Person(name: b.name ?? "", role: b.role ?? "", link: b.link ?? "", imagePath: finalImagePath, comment: b.comment ?? "", tags: b.tags ?? [], orderIndex: b.orderIndex ?? 0)
+                                person.id = uuid
+                                self.modelContext.insert(person)
+                            }
+                        }
+                        
+                        var taskMap = [UUID: DailyTask]()
+                        for b in backup.dailyTasks ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            let task: DailyTask
+                            if let existing = existingDailyTasks[uuid] {
+                                task = existing
+                                task.title = b.title ?? "Untitled"
+                                task.orderIndex = b.orderIndex ?? 0
+                                task.isActive = b.isActive ?? true
+                                task.createdAt = b.createdAt ?? Date()
+                            } else {
+                                task = DailyTask(title: b.title ?? "Untitled", orderIndex: b.orderIndex ?? 0, isActive: b.isActive ?? true, createdAt: b.createdAt ?? Date())
+                                task.id = uuid
+                                self.modelContext.insert(task)
+                            }
+                            taskMap[uuid] = task
+                        }
+                        
+                        for b in backup.dailyTaskLogs ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if let existing = existingDailyTaskLogs[uuid] {
+                                existing.logicalDate = b.logicalDate ?? ""
+                                existing.isCompleted = b.isCompleted ?? false
+                                if let taskId = b.taskId?.uuid, let task = taskMap[taskId] {
+                                    existing.task = task
+                                }
+                            } else {
+                                let log = DailyTaskLog(logicalDate: b.logicalDate ?? "", isCompleted: b.isCompleted ?? false)
+                                log.id = uuid
+                                if let taskId = b.taskId?.uuid, let task = taskMap[taskId] {
+                                    log.task = task
+                                }
+                                self.modelContext.insert(log)
                             }
                         }
                         

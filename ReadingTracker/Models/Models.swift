@@ -185,6 +185,42 @@ final class Business {
 }
 
 @Model
+final class DiaryEntry {
+    var id: UUID = UUID()
+    var date: Date
+    var content: String
+    var isHighlighted: Bool = false
+    
+    init(date: Date, content: String = "", isHighlighted: Bool = false) {
+        self.date = date
+        self.content = content
+        self.isHighlighted = isHighlighted
+    }
+}
+
+@Model
+final class Person {
+    var id: UUID = UUID()
+    var name: String
+    var role: String
+    var link: String
+    var imagePath: String?
+    var comment: String
+    var tags: [String] = []
+    var orderIndex: Int = 0
+    
+    init(name: String, role: String, link: String, imagePath: String? = nil, comment: String = "", tags: [String] = [], orderIndex: Int = 0) {
+        self.name = name
+        self.role = role
+        self.link = link
+        self.imagePath = imagePath
+        self.comment = comment
+        self.tags = tags
+        self.orderIndex = orderIndex
+    }
+}
+
+@Model
 final class Paper {
     var id: UUID = UUID()
     var title: String
@@ -237,6 +273,39 @@ final class ConceptLink {
     }
 }
 
+@Model
+final class DailyTask {
+    var id: UUID = UUID()
+    var title: String
+    var orderIndex: Int = 0
+    var isActive: Bool = true
+    var createdAt: Date = Date()
+    
+    @Relationship(deleteRule: .cascade, inverse: \DailyTaskLog.task)
+    var logs: [DailyTaskLog] = []
+    
+    init(title: String, orderIndex: Int = 0, isActive: Bool = true, createdAt: Date = Date()) {
+        self.title = title
+        self.orderIndex = orderIndex
+        self.isActive = isActive
+        self.createdAt = createdAt
+    }
+}
+
+@Model
+final class DailyTaskLog {
+    var id: UUID = UUID()
+    var logicalDate: String // YYYY-MM-DD representing the day it belongs to
+    var isCompleted: Bool = false
+    
+    var task: DailyTask?
+    
+    init(logicalDate: String, isCompleted: Bool = false) {
+        self.logicalDate = logicalDate
+        self.isCompleted = isCompleted
+    }
+}
+
 // MARK: - Backup & Restore Models
 
 struct FlexibleID: Codable, Hashable {
@@ -275,9 +344,13 @@ struct BackupData: Codable {
     var memos: [BackupMemo]?
     var movies: [BackupMovie]?
     var businesses: [BackupBusiness]?
+    var diaries: [BackupDiaryEntry]?
+    var people: [BackupPerson]?
+    var dailyTasks: [BackupDailyTask]?
+    var dailyTaskLogs: [BackupDailyTaskLog]?
     var tagOrder: String?
 
-    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, movies: [BackupMovie]? = nil, businesses: [BackupBusiness]? = nil, tagOrder: String? = nil) {
+    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, movies: [BackupMovie]? = nil, businesses: [BackupBusiness]? = nil, diaries: [BackupDiaryEntry]? = nil, people: [BackupPerson]? = nil, dailyTasks: [BackupDailyTask]? = nil, dailyTaskLogs: [BackupDailyTaskLog]? = nil, tagOrder: String? = nil) {
         self.documents = documents
         self.progressLogs = progressLogs
         self.todos = todos
@@ -287,6 +360,10 @@ struct BackupData: Codable {
         self.memos = memos
         self.movies = movies
         self.businesses = businesses
+        self.diaries = diaries
+        self.people = people
+        self.dailyTasks = dailyTasks
+        self.dailyTaskLogs = dailyTaskLogs
         self.tagOrder = tagOrder
     }
 
@@ -325,6 +402,10 @@ struct BackupData: Codable {
         memos = decodeArray(["memos", "generalMemos", "notes", "quotes"])
         movies = decodeArray(["movies"])
         businesses = decodeArray(["businesses", "business"])
+        diaries = decodeArray(["diaries", "diary"])
+        people = decodeArray(["people", "persons"])
+        dailyTasks = decodeArray(["dailyTasks"])
+        dailyTaskLogs = decodeArray(["dailyTaskLogs"])
         
         if let k = DynamicCodingKeys(stringValue: "tagOrder") {
             tagOrder = try? container.decodeIfPresent(String.self, forKey: k)
@@ -354,6 +435,10 @@ struct BackupData: Codable {
         if let k = DynamicCodingKeys(stringValue: "memos") { try container.encodeIfPresent(memos, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "movies") { try container.encodeIfPresent(movies, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "businesses") { try container.encodeIfPresent(businesses, forKey: k) }
+        if let k = DynamicCodingKeys(stringValue: "diaries") { try container.encodeIfPresent(diaries, forKey: k) }
+        if let k = DynamicCodingKeys(stringValue: "people") { try container.encodeIfPresent(people, forKey: k) }
+        if let k = DynamicCodingKeys(stringValue: "dailyTasks") { try container.encodeIfPresent(dailyTasks, forKey: k) }
+        if let k = DynamicCodingKeys(stringValue: "dailyTaskLogs") { try container.encodeIfPresent(dailyTaskLogs, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "tagOrder") { try container.encodeIfPresent(tagOrder, forKey: k) }
     }
 }
@@ -479,6 +564,25 @@ struct BackupBusiness: Codable {
     var tags: [String]?
 }
 
+struct BackupDiaryEntry: Codable {
+    var id: FlexibleID?
+    var date: Date?
+    var content: String?
+    var isHighlighted: Bool?
+}
+
+struct BackupPerson: Codable {
+    var id: FlexibleID?
+    var name: String?
+    var role: String?
+    var link: String?
+    var imagePath: String?
+    var comment: String?
+    var tags: [String]?
+    var imageData: Data?
+    var orderIndex: Int?
+}
+
 struct BackupPaper: Codable {
     var id: FlexibleID?
     var title: String?
@@ -515,6 +619,21 @@ struct BackupMemo: Codable {
         self.tabIndex = tabIndex
         self.tabName = tabName
     }
+}
+
+struct BackupDailyTask: Codable {
+    var id: FlexibleID?
+    var title: String?
+    var orderIndex: Int?
+    var isActive: Bool?
+    var createdAt: Date?
+}
+
+struct BackupDailyTaskLog: Codable {
+    var id: FlexibleID?
+    var logicalDate: String?
+    var isCompleted: Bool?
+    var taskId: FlexibleID?
 }
 
 extension String {

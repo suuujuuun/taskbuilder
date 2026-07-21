@@ -13,7 +13,11 @@ struct ReadingTrackerApp: App {
             ConceptLink.self,
             GeneralMemo.self,
             Movie.self,
-            Business.self
+            Business.self,
+            DiaryEntry.self,
+            Person.self,
+            DailyTask.self,
+            DailyTaskLog.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

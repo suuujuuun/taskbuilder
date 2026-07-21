@@ -8,6 +8,8 @@ struct KnowledgeGraphView: View {
     @Query private var links: [ConceptLink]
     @Query private var memos: [GeneralMemo]
     
+    @Binding var columnVisibility: NavigationSplitViewVisibility
+    
     @State private var selectedNode: ConceptNode?
     @State private var isEditing = false
     @State private var searchText = ""
