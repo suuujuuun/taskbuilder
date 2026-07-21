@@ -147,7 +147,7 @@ struct PlanningView: View {
                     .onMove(perform: moveTodos)
                 }
             }
-            .frame(minWidth: 300)
+            .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
             
             // Right side: General Memo
             VStack(alignment: .leading) {

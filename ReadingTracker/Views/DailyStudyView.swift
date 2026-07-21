@@ -27,8 +27,7 @@ struct DailyStudyView: View {
                     Text(currentDate, format: .dateTime.month().day().weekday(.wide))
                         .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
+                .padding(.horizontal, 20)
                 
                 // Add Task
                 HStack {
@@ -80,7 +79,7 @@ struct DailyStudyView: View {
                 }
                 .listStyle(.plain)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             Divider()
             
@@ -92,7 +91,8 @@ struct DailyStudyView: View {
                 
                 let stats = calculateStatistics()
                 
-                VStack(spacing: 16) {
+                ScrollView {
+                    VStack(spacing: 16) {
                     // Overall completion
                     VStack(spacing: 8) {
                         Text("Last 7 Days Completion")
@@ -172,7 +172,9 @@ struct DailyStudyView: View {
                             .cornerRadius(12)
                         }
                     }
+                    }
                 }
+                .scrollIndicators(.hidden)
                 
                 Spacer()
             }
