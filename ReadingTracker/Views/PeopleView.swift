@@ -7,7 +7,14 @@ struct PeopleView: View {
     @Query(sort: \Person.orderIndex) private var people: [Person]
     
     @State private var showingAddPerson = false
+    @State private var editingPerson: Person? = nil
     @State private var selectedTag: String? = nil
+    @State private var selectedRole: String? = nil
+    @State private var filterEnglish: Bool = false
+    
+    @State private var draggedPerson: Person? = nil
+    
+    let roles = ["YouTuber", "Researcher", "Blogger", "News", "Other"]
     
     private var allTags: [String] {
         let tags = people.flatMap { $0.tags }
@@ -15,10 +22,23 @@ struct PeopleView: View {
     }
     
     var filteredPeople: [Person] {
-        if let tag = selectedTag {
-            return people.filter { $0.tags.contains(tag) }
+        return people.filter { p in
+            var isMatch = true
+            
+            if let tag = selectedTag {
+                isMatch = isMatch && p.tags.contains(tag)
+            }
+            
+            if let role = selectedRole {
+                isMatch = isMatch && p.role == role
+            }
+            
+            if filterEnglish {
+                isMatch = isMatch && p.isEnglish
+            }
+            
+            return isMatch
         }
-        return people
     }
     
     let columns = [
@@ -27,33 +47,76 @@ struct PeopleView: View {
     
     var body: some View {
         VStack {
-            // Tag Filter
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    Button("All") {
-                        selectedTag = nil
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 12)
-                    .background(selectedTag == nil ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
-                    .foregroundColor(selectedTag == nil ? .white : .secondary)
-                    .cornerRadius(16)
-                    
-                    ForEach(allTags, id: \.self) { tag in
-                        Button(tag) {
-                            selectedTag = tag
+            // Filters
+            VStack(spacing: 8) {
+                // Role Filter
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        Button("All Roles") {
+                            selectedRole = nil
                         }
                         .buttonStyle(.plain)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 12)
-                        .background(selectedTag == tag ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
-                        .foregroundColor(selectedTag == tag ? .white : .secondary)
-                        .cornerRadius(16)
+                        .font(.caption)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .background(selectedRole == nil ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
+                        .foregroundColor(selectedRole == nil ? .white : .secondary)
+                        .cornerRadius(12)
+                        
+                        ForEach(roles, id: \.self) { role in
+                            Button(role) {
+                                selectedRole = role
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 10)
+                            .background(selectedRole == role ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
+                            .foregroundColor(selectedRole == role ? .white : .secondary)
+                            .cornerRadius(12)
+                        }
                     }
+                    .padding(.horizontal)
                 }
-                .padding()
+                
+                // Tag Filter & English
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        Button("All Tags") {
+                            selectedTag = nil
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .background(selectedTag == nil ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
+                        .foregroundColor(selectedTag == nil ? .white : .secondary)
+                        .cornerRadius(12)
+                        
+                        ForEach(allTags, id: \.self) { tag in
+                            Button(tag) {
+                                selectedTag = tag
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 10)
+                            .background(selectedTag == tag ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
+                            .foregroundColor(selectedTag == tag ? .white : .secondary)
+                            .cornerRadius(12)
+                        }
+                        
+                        Divider().frame(height: 20)
+                        
+                        Toggle("English", isOn: $filterEnglish)
+                            .toggleStyle(.checkbox)
+                            .font(.caption)
+                            .padding(.leading, 8)
+                    }
+                    .padding(.horizontal)
+                }
             }
+            .padding(.vertical, 8)
             
             if people.isEmpty {
                 Spacer()
@@ -65,6 +128,14 @@ struct PeopleView: View {
                     LazyVGrid(columns: columns, spacing: 24) {
                         ForEach(filteredPeople) { person in
                             PersonCard(person: person)
+                                .onTapGesture {
+                                    editingPerson = person
+                                }
+                                .onDrag {
+                                    self.draggedPerson = person
+                                    return NSItemProvider(object: person.id.uuidString as NSString)
+                                }
+                                .onDrop(of: [.plainText], delegate: PersonDropDelegate(item: person, people: people, draggedItem: $draggedPerson, modelContext: modelContext))
                                 .contextMenu {
                                     Button("Delete", role: .destructive) {
                                         deletePerson(person)
@@ -76,7 +147,7 @@ struct PeopleView: View {
                 }
             }
         }
-        .navigationTitle("People & Subscriptions")
+        .navigationTitle("People")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { showingAddPerson = true }) {
@@ -88,11 +159,42 @@ struct PeopleView: View {
         .sheet(isPresented: $showingAddPerson) {
             AddPersonView(isPresented: $showingAddPerson)
         }
+        .sheet(item: $editingPerson) { person in
+            EditPersonView(person: person)
+        }
     }
     
     private func deletePerson(_ person: Person) {
         modelContext.delete(person)
         try? modelContext.save()
+    }
+}
+
+struct PersonDropDelegate: DropDelegate {
+    let item: Person
+    var people: [Person]
+    @Binding var draggedItem: Person?
+    var modelContext: ModelContext
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedItem = nil
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedItem = self.draggedItem else { return }
+        if draggedItem != item {
+            let from = people.firstIndex(of: draggedItem)!
+            let to = people.firstIndex(of: item)!
+            
+            var sortedPeople = people
+            sortedPeople.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+            
+            for (index, p) in sortedPeople.enumerated() {
+                p.orderIndex = index
+            }
+            try? modelContext.save()
+        }
     }
 }
 
@@ -146,7 +248,6 @@ struct PersonCard: View {
                     Text(person.comment)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
                         .multilineTextAlignment(.center)
                 }
                 
@@ -170,6 +271,7 @@ struct PersonCard: View {
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+        .contentShape(Rectangle())
     }
     
     private func getDocumentsDirectory() -> URL? {
@@ -203,6 +305,7 @@ struct AddPersonView: View {
     @State private var link: String = ""
     @State private var comment: String = ""
     @State private var tagsString: String = ""
+    @State private var isEnglish: Bool = false
     @State private var selectedImageData: Data? = nil
     
     let roles = ["YouTuber", "Researcher", "Blogger", "News", "Other"]
@@ -222,9 +325,12 @@ struct AddPersonView: View {
                 
                 TextField("Link URL", text: $link)
                 
-                TextField("Comment", text: $comment)
+                TextField("Comment", text: $comment, axis: .vertical)
+                    .lineLimit(3...10)
                 
                 TextField("Tags (comma separated)", text: $tagsString)
+                
+                Toggle("English", isOn: $isEnglish)
                 
                 HStack {
                     Text("Photo:")
@@ -277,9 +383,95 @@ struct AddPersonView: View {
         let tags = tagsString.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let maxOrder = people.map { $0.orderIndex }.max() ?? -1
         
-        let newPerson = Person(name: name, role: role, link: link, imagePath: imagePath, comment: comment, tags: tags, orderIndex: maxOrder + 1)
+        let newPerson = Person(name: name, role: role, link: link, imagePath: imagePath, comment: comment, tags: tags, orderIndex: maxOrder + 1, isEnglish: isEnglish)
         modelContext.insert(newPerson)
         try? modelContext.save()
         isPresented = false
+    }
+}
+
+struct EditPersonView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    
+    @Bindable var person: Person
+    
+    @State private var tagsString: String = ""
+    @State private var selectedImageData: Data? = nil
+    
+    let roles = ["YouTuber", "Researcher", "Blogger", "News", "Other"]
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Edit Person").font(.title).bold()
+            
+            Form {
+                TextField("Name", text: $person.name)
+                
+                Picker("Role", selection: $person.role) {
+                    ForEach(roles, id: \.self) { role in
+                        Text(role).tag(role)
+                    }
+                }
+                
+                TextField("Link URL", text: $person.link)
+                
+                TextField("Comment", text: $person.comment, axis: .vertical)
+                    .lineLimit(3...10)
+                
+                TextField("Tags (comma separated)", text: $tagsString)
+                
+                Toggle("English", isOn: $person.isEnglish)
+                
+                HStack {
+                    Text("Photo:")
+                    Button("Select Image") {
+                        selectImage()
+                    }
+                    if selectedImageData != nil || person.imagePath != nil {
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                    }
+                }
+            }
+            .frame(width: 400)
+            
+            HStack {
+                Button("Done") {
+                    savePerson()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(30)
+        .frame(minWidth: 450)
+        .onAppear {
+            tagsString = person.tags.joined(separator: ", ")
+        }
+    }
+    
+    private func selectImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            selectedImageData = try? Data(contentsOf: url)
+        }
+    }
+    
+    private func savePerson() {
+        if let data = selectedImageData {
+            let filename = UUID().uuidString + ".jpg"
+            if let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                let fileURL = docsDir.appendingPathComponent(filename)
+                try? data.write(to: fileURL)
+                person.imagePath = filename
+            }
+        }
+        
+        let tags = tagsString.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        person.tags = tags
+        
+        try? modelContext.save()
+        dismiss()
     }
 }

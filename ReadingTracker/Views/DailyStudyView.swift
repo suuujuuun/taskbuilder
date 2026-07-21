@@ -63,12 +63,12 @@ struct DailyStudyView: View {
                                 .foregroundColor(isCompleted ? .secondary : .primary)
                             
                             Spacer()
+                            
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundColor(.secondary)
+                                .opacity(0.5)
                         }
                         .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            toggleTaskCompletion(task, currentlyCompleted: isCompleted)
-                        }
                         .contextMenu {
                             Button("Delete", role: .destructive) {
                                 deleteTask(task)

@@ -208,8 +208,9 @@ final class Person {
     var comment: String
     var tags: [String] = []
     var orderIndex: Int = 0
+    var isEnglish: Bool = false
     
-    init(name: String, role: String, link: String, imagePath: String? = nil, comment: String = "", tags: [String] = [], orderIndex: Int = 0) {
+    init(name: String, role: String, link: String, imagePath: String? = nil, comment: String = "", tags: [String] = [], orderIndex: Int = 0, isEnglish: Bool = false) {
         self.name = name
         self.role = role
         self.link = link
@@ -217,6 +218,7 @@ final class Person {
         self.comment = comment
         self.tags = tags
         self.orderIndex = orderIndex
+        self.isEnglish = isEnglish
     }
 }
 
@@ -581,6 +583,7 @@ struct BackupPerson: Codable {
     var tags: [String]?
     var imageData: Data?
     var orderIndex: Int?
+    var isEnglish: Bool?
 }
 
 struct BackupPaper: Codable {
