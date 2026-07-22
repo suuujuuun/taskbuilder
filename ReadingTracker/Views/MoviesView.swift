@@ -123,14 +123,20 @@ struct MovieCard: View {
                 .clipped()
                 .task(id: movie.imagePath) {
                     if let path = movie.imagePath {
+                        if let cached = ImageCache.shared.get(forKey: path) {
+                            self.loadedImage = cached
+                            return
+                        }
                         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(path)
                         let data = await Task.detached { try? Data(contentsOf: url) }.value
-                        await MainActor.run {
-                            if let data = data, let image = NSImage(data: data) {
-                                self.loadedImage = image
-                            } else {
-                                self.loadedImage = nil
-                            }
+                        
+                        guard !Task.isCancelled else { return }
+                        
+                        if let data = data, let image = NSImage(data: data) {
+                            ImageCache.shared.set(image, forKey: path)
+                            self.loadedImage = image
+                        } else {
+                            self.loadedImage = nil
                         }
                     } else {
                         self.loadedImage = nil

@@ -200,6 +200,7 @@ struct PersonDropDelegate: DropDelegate {
 
 struct PersonCard: View {
     var person: Person
+    @State private var loadedImage: NSImage? = nil
     
     var body: some View {
         VStack(spacing: 12) {
@@ -211,12 +212,14 @@ struct PersonCard: View {
                     }
                 }) {
                     Group {
-                        if let imagePath = person.imagePath,
-                           let url = getDocumentsDirectory()?.appendingPathComponent(imagePath),
-                           let nsImage = NSImage(contentsOf: url) {
-                            Image(nsImage: nsImage)
+                        if let image = loadedImage {
+                            Image(nsImage: image)
                                 .resizable()
                                 .scaledToFill()
+                        } else if person.imagePath != nil {
+                            Circle()
+                                .fill(Color.gray.opacity(0.1))
+                                .overlay(ProgressView().scaleEffect(0.5))
                         } else {
                             Image(systemName: "person.crop.circle.fill")
                                 .resizable()
@@ -231,6 +234,29 @@ struct PersonCard: View {
                 .buttonStyle(.plain)
                 .onHover { isHovered in
                     if isHovered { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                }
+                .task(id: person.imagePath) {
+                    if let path = person.imagePath {
+                        if let cached = ImageCache.shared.get(forKey: path) {
+                            self.loadedImage = cached
+                            return
+                        }
+                        
+                        if let url = getDocumentsDirectory()?.appendingPathComponent(path) {
+                            let data = await Task.detached { try? Data(contentsOf: url) }.value
+                            
+                            guard !Task.isCancelled else { return }
+                            
+                            if let data = data, let image = NSImage(data: data) {
+                                ImageCache.shared.set(image, forKey: path)
+                                self.loadedImage = image
+                            } else {
+                                self.loadedImage = nil
+                            }
+                        }
+                    } else {
+                        self.loadedImage = nil
+                    }
                 }
                 
                 // Role Badge
