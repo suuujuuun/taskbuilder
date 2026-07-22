@@ -203,7 +203,7 @@ struct ContentView: View {
             }
             
             let safeNodes = conceptNodes.filter { !$0.isDeleted }.map { n in
-                BackupConceptNode(id: FlexibleID(uuid: n.id), title: n.title, shortName: n.shortName, content: n.content, x: n.x, y: n.y)
+                BackupConceptNode(id: FlexibleID(uuid: n.id), title: n.title, shortName: n.shortName, content: n.content, x: n.x, y: n.y, tags: n.tags)
             }
             
             let safeLinks = conceptLinks.filter { !$0.isDeleted }.compactMap { link -> BackupConceptLink? in
@@ -240,10 +240,11 @@ struct ContentView: View {
             struct PersonMeta {
                 let id: UUID; let name: String; let role: String; let link: String
                 let imagePath: String?; let comment: String; let tags: [String]; let orderIndex: Int
+                let isEnglish: Bool
             }
             
             let peopleMeta = people.filter { !$0.isDeleted }.map { p in
-                PersonMeta(id: p.id, name: p.name, role: p.role, link: p.link, imagePath: p.imagePath, comment: p.comment, tags: p.tags, orderIndex: p.orderIndex)
+                PersonMeta(id: p.id, name: p.name, role: p.role, link: p.link, imagePath: p.imagePath, comment: p.comment, tags: p.tags, orderIndex: p.orderIndex, isEnglish: p.isEnglish)
             }
             
             let safeDailyTasks = dailyTasks.filter { !$0.isDeleted }.map { t in
@@ -287,7 +288,7 @@ struct ContentView: View {
                         let fileURL = docsDir.appendingPathComponent(path)
                         imgData = try? Data(contentsOf: fileURL)
                     }
-                    peopleBackup.append(BackupPerson(id: FlexibleID(uuid: p.id), name: p.name, role: p.role, link: p.link, imagePath: p.imagePath, comment: p.comment, tags: p.tags, imageData: imgData, orderIndex: p.orderIndex))
+                    peopleBackup.append(BackupPerson(id: FlexibleID(uuid: p.id), name: p.name, role: p.role, link: p.link, imagePath: p.imagePath, comment: p.comment, tags: p.tags, imageData: imgData, orderIndex: p.orderIndex, isEnglish: p.isEnglish))
                 }
                 
                 let backup = BackupData(
@@ -494,8 +495,9 @@ struct ContentView: View {
                                 node.content = b.content ?? ""
                                 node.x = b.x ?? 0.0
                                 node.y = b.y ?? 0.0
+                                node.tags = b.tags ?? []
                             } else {
-                                node = ConceptNode(title: b.title ?? "Untitled", shortName: b.shortName, content: b.content ?? "")
+                                node = ConceptNode(title: b.title ?? "Untitled", shortName: b.shortName, content: b.content ?? "", tags: b.tags ?? [])
                                 node.id = uuid
                                 self.modelContext.insert(node)
                             }
@@ -638,8 +640,9 @@ struct ContentView: View {
                                 existing.comment = b.comment ?? ""
                                 existing.tags = b.tags ?? []
                                 existing.orderIndex = b.orderIndex ?? 0
+                                existing.isEnglish = b.isEnglish ?? false
                             } else {
-                                let person = Person(name: b.name ?? "", role: b.role ?? "", link: b.link ?? "", imagePath: finalImagePath, comment: b.comment ?? "", tags: b.tags ?? [], orderIndex: b.orderIndex ?? 0)
+                                let person = Person(name: b.name ?? "", role: b.role ?? "", link: b.link ?? "", imagePath: finalImagePath, comment: b.comment ?? "", tags: b.tags ?? [], orderIndex: b.orderIndex ?? 0, isEnglish: b.isEnglish ?? false)
                                 person.id = uuid
                                 self.modelContext.insert(person)
                             }

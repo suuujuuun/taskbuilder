@@ -181,7 +181,7 @@ struct KnowledgeGraphView: View {
                                             HStack(spacing: 2) {
                                                 Text(tag)
                                                 Button(action: {
-                                                    node.tags.removeAll(where: { $0 == tag })
+                                                    node.tags = node.tags.filter { $0 != tag }
                                                 }) {
                                                     Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
                                                 }.buttonStyle(.plain)
@@ -201,7 +201,7 @@ struct KnowledgeGraphView: View {
                                             .onSubmit {
                                                 let newTag = tagInputText.trimmingCharacters(in: .whitespaces)
                                                 if !newTag.isEmpty && !node.tags.contains(newTag) {
-                                                    node.tags.append(newTag)
+                                                    node.tags = node.tags + [newTag]
                                                     tagInputText = ""
                                                 }
                                             }
@@ -215,7 +215,7 @@ struct KnowledgeGraphView: View {
                                             HStack(spacing: 4) {
                                                 ForEach(suggestions, id: \.self) { sug in
                                                     Button(action: {
-                                                        node.tags.append(sug)
+                                                        node.tags = node.tags + [sug]
                                                         tagInputText = ""
                                                     }) {
                                                         Text(sug)
@@ -876,7 +876,7 @@ class GraphScene: SKScene {
                 for i in 0..<nodeKeys.count {
                     for j in (i+1)..<nodeKeys.count {
                         let id1 = nodeKeys[i]; let id2 = nodeKeys[j]
-                        let p1 = positions[id1]!; let p2 = positions[id2]!
+                        let p1 = positions[id1] ?? .zero; let p2 = positions[id2] ?? .zero
                         let dx = p1.x - p2.x; let dy = p1.y - p2.y
                         let distSq = max(dx*dx + dy*dy, 0.1)
                         let dist = sqrt(distSq)
@@ -884,8 +884,8 @@ class GraphScene: SKScene {
                             let force = k_sq / dist
                             let fx = (dx / dist) * force
                             let fy = (dy / dist) * force
-                            forces[id1]!.x += fx; forces[id1]!.y += fy
-                            forces[id2]!.x -= fx; forces[id2]!.y -= fy
+                            forces[id1, default: .zero].x += fx; forces[id1, default: .zero].y += fy
+                            forces[id2, default: .zero].x -= fx; forces[id2, default: .zero].y -= fy
                         }
                     }
                 }
@@ -896,26 +896,26 @@ class GraphScene: SKScene {
                     let dist = max(sqrt(dx*dx + dy*dy), 0.1)
                     let force = (dist * dist) / k
                     let fx = (dx / dist) * force; let fy = (dy / dist) * force
-                    forces[link.sourceId]!.x -= fx; forces[link.sourceId]!.y -= fy
-                    forces[link.targetId]!.x += fx; forces[link.targetId]!.y += fy
+                    forces[link.sourceId, default: .zero].x -= fx; forces[link.sourceId, default: .zero].y -= fy
+                    forces[link.targetId, default: .zero].x += fx; forces[link.targetId, default: .zero].y += fy
                 }
                 
                 let center = CGPoint(x: midX, y: midY)
                 for id in nodeKeys {
-                    let p = positions[id]!
+                    let p = positions[id] ?? .zero
                     let dx = center.x - p.x; let dy = center.y - p.y
                     let dist = max(sqrt(dx*dx + dy*dy), 0.1)
                     let force = dist * 0.1
-                    forces[id]!.x += (dx / dist) * force; forces[id]!.y += (dy / dist) * force
+                    forces[id, default: .zero].x += (dx / dist) * force; forces[id, default: .zero].y += (dy / dist) * force
                 }
                 
                 for id in nodeKeys {
-                    let f = forces[id]!
+                    let f = forces[id] ?? .zero
                     let maxMove: CGFloat = 50.0
                     let moveDist = sqrt(f.x*f.x + f.y*f.y)
                     let scale = min(moveDist, maxMove) / max(moveDist, 0.1)
-                    positions[id]!.x += f.x * scale * 0.1
-                    positions[id]!.y += f.y * scale * 0.1
+                    positions[id, default: .zero].x += f.x * scale * 0.1
+                    positions[id, default: .zero].y += f.y * scale * 0.1
                 }
             }
             

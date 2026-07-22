@@ -158,18 +158,23 @@ struct DailyStudyView: View {
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(16)
                         
-                        if let worst = stats.taskRates.last, worst.percentage < 50, worst.totalDays > 1 {
-                            HStack {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                Text("Focus on: \(worst.task.title)")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                                Spacer()
+                        let worstTasks = stats.taskRates.filter { $0.percentage < 50 && $0.totalDays > 1 }
+                        if !worstTasks.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(worstTasks, id: \.task.id) { worst in
+                                    HStack {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundColor(.orange)
+                                        Text("Focus on: \(worst.task.title)")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                        Spacer()
+                                    }
+                                    .padding()
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(12)
+                                }
                             }
-                            .padding()
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(12)
                         }
                     }
                     }
@@ -204,10 +209,11 @@ struct DailyStudyView: View {
     
     private func moveTask(from source: IndexSet, to destination: Int) {
         var activeTasks = tasks.filter { $0.isActive }
+        let originalOrders = activeTasks.map { $0.orderIndex }
         activeTasks.move(fromOffsets: source, toOffset: destination)
         
         for (index, task) in activeTasks.enumerated() {
-            task.orderIndex = index
+            task.orderIndex = originalOrders[index]
         }
         try? modelContext.save()
     }

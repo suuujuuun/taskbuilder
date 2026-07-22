@@ -183,9 +183,10 @@ struct PlanningView: View {
     
     private func moveTodos(from source: IndexSet, to destination: Int) {
         var revisedItems = filteredTodos
+        let originalOrders = revisedItems.map { $0.orderIndex }
         revisedItems.move(fromOffsets: source, toOffset: destination)
         for (index, item) in revisedItems.enumerated() {
-            item.orderIndex = index
+            item.orderIndex = originalOrders[index]
         }
         try? modelContext.save()
     }

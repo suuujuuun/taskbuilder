@@ -56,24 +56,24 @@ struct PeopleView: View {
                             selectedRole = nil
                         }
                         .buttonStyle(.plain)
-                        .font(.caption)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
+                        .font(.system(size: 13))
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 12)
                         .background(selectedRole == nil ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
                         .foregroundColor(selectedRole == nil ? .white : .secondary)
-                        .cornerRadius(12)
+                        .cornerRadius(13)
                         
                         ForEach(roles, id: \.self) { role in
                             Button(role) {
                                 selectedRole = role
                             }
                             .buttonStyle(.plain)
-                            .font(.caption)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 10)
+                            .font(.system(size: 13))
+                            .padding(.vertical, 5)
+                            .padding(.horizontal, 12)
                             .background(selectedRole == role ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
                             .foregroundColor(selectedRole == role ? .white : .secondary)
-                            .cornerRadius(12)
+                            .cornerRadius(13)
                         }
                     }
                     .padding(.horizontal)
@@ -86,24 +86,24 @@ struct PeopleView: View {
                             selectedTag = nil
                         }
                         .buttonStyle(.plain)
-                        .font(.caption)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
+                        .font(.system(size: 13))
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 12)
                         .background(selectedTag == nil ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
                         .foregroundColor(selectedTag == nil ? .white : .secondary)
-                        .cornerRadius(12)
+                        .cornerRadius(13)
                         
                         ForEach(allTags, id: \.self) { tag in
                             Button(tag) {
                                 selectedTag = tag
                             }
                             .buttonStyle(.plain)
-                            .font(.caption)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 10)
+                            .font(.system(size: 13))
+                            .padding(.vertical, 5)
+                            .padding(.horizontal, 12)
                             .background(selectedTag == tag ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
                             .foregroundColor(selectedTag == tag ? .white : .secondary)
-                            .cornerRadius(12)
+                            .cornerRadius(13)
                         }
                         
                         Divider().frame(height: 20)
@@ -184,16 +184,16 @@ struct PersonDropDelegate: DropDelegate {
     func dropEntered(info: DropInfo) {
         guard let draggedItem = self.draggedItem else { return }
         if draggedItem != item {
-            let from = people.firstIndex(of: draggedItem)!
-            let to = people.firstIndex(of: item)!
-            
-            var sortedPeople = people
-            sortedPeople.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-            
-            for (index, p) in sortedPeople.enumerated() {
-                p.orderIndex = index
+            if let from = people.firstIndex(of: draggedItem),
+               let to = people.firstIndex(of: item) {
+                var sortedPeople = people
+                sortedPeople.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+                
+                for (index, p) in sortedPeople.enumerated() {
+                    p.orderIndex = index
+                }
+                try? modelContext.save()
             }
-            try? modelContext.save()
         }
     }
 }

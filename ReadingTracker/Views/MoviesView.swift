@@ -471,10 +471,11 @@ struct MovieDropDelegate: DropDelegate {
         
         if fromIndex != toIndex {
             var newItems = sorted
+            let originalOrders = sorted.map { $0.orderIndex }
             newItems.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
             
             for (index, movie) in newItems.enumerated() {
-                movie.orderIndex = index
+                movie.orderIndex = originalOrders[index]
             }
             try? modelContext.save()
         }

@@ -290,6 +290,7 @@ struct DocumentDropDelegate: DropDelegate {
         for (index, doc) in items.enumerated() {
             doc.orderIndex = index
         }
+        try? modelContext.save()
     }
 }
 
