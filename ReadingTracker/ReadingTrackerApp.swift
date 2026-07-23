@@ -19,7 +19,16 @@ struct ReadingTrackerApp: App {
             DailyTask.self,
             DailyTaskLog.self
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        
+        let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appDir = appSupportDir.appendingPathComponent("ReadingTracker", isDirectory: true)
+        
+        if !FileManager.default.fileExists(atPath: appDir.path) {
+            try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true, attributes: nil)
+        }
+        
+        let storeURL = appDir.appendingPathComponent("ReadingTracker.sqlite")
+        let modelConfiguration = ModelConfiguration(url: storeURL)
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

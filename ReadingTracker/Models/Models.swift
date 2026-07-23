@@ -351,6 +351,7 @@ struct BackupData: Codable {
     var dailyTasks: [BackupDailyTask]?
     var dailyTaskLogs: [BackupDailyTaskLog]?
     var tagOrder: String?
+    var hasDecodingErrors: Bool = false
 
     init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, movies: [BackupMovie]? = nil, businesses: [BackupBusiness]? = nil, diaries: [BackupDiaryEntry]? = nil, people: [BackupPerson]? = nil, dailyTasks: [BackupDailyTask]? = nil, dailyTaskLogs: [BackupDailyTaskLog]? = nil, tagOrder: String? = nil) {
         self.documents = documents
@@ -378,6 +379,7 @@ struct BackupData: Codable {
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicCodingKeys.self)
+        var errorsFound = false
         
         func decodeArray<T: Codable>(_ keys: [String]) -> [T]? {
             for key in keys {
@@ -388,6 +390,7 @@ struct BackupData: Codable {
                             return array
                         } catch {
                             print("Decoding error for key \(key): \(error)")
+                            errorsFound = true
                         }
                     }
                 }
@@ -417,13 +420,15 @@ struct BackupData: Codable {
         if let k = DynamicCodingKeys(stringValue: "memo") {
             if let memoStrs = try? container.decode([String].self, forKey: k) {
                 let m = memoStrs.map { BackupMemo(id: nil, text: $0) }
-                memos = (memos ?? []) + m
+                if memos == nil { memos = m } else { memos?.append(contentsOf: m) }
             } else if let memoStr = try? container.decode(String.self, forKey: k) {
                 memos = (memos ?? []) + [BackupMemo(id: nil, text: memoStr)]
             } else if let memoObjs = try? container.decode([BackupMemo].self, forKey: k) {
                 memos = (memos ?? []) + memoObjs
             }
         }
+        
+        self.hasDecodingErrors = errorsFound
     }
     
     func encode(to encoder: Encoder) throws {

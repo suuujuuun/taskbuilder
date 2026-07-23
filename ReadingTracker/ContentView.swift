@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var selectedView: AppView? = .details
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     
     @Query private var documents: [Document]
     @Query private var progressLogs: [ProgressLog]
@@ -22,6 +23,7 @@ struct ContentView: View {
     
     @AppStorage("sidebarTabOrder") private var sidebarTabOrderString: String = ""
     @AppStorage("tagOrder") private var tagOrderString: String = ""
+    @AppStorage("lastAutoBackupTime") private var lastAutoBackupTime: Double = 0
     @State private var sidebarTabs: [AppView] = AppView.allCases
     
     @State private var showingAlert = false
@@ -158,6 +160,19 @@ struct ContentView: View {
             }
             sidebarTabs = merged
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .inactive || newPhase == .background {
+                let now = Date().timeIntervalSince1970
+                if now - lastAutoBackupTime > 3600 { // 1 hour cooldown
+                    lastAutoBackupTime = now
+                    performExport(to: getAutoBackupURL(), isAuto: true)
+                }
+            }
+        }
+    }
+    
+    private func getAutoBackupURL() -> URL {
+        return URL(fileURLWithPath: "/Users/seungjun/Desktop/Application/taskbuilder/ReadingTracker/ReadingTrackerBackup.json")
     }
     
     private func getDocumentsDirectory() -> URL {
@@ -170,7 +185,12 @@ struct ContentView: View {
         panel.nameFieldStringValue = "ReadingTrackerBackup.json"
         
         if panel.runModal() == .OK, let url = panel.url {
-            // Build dictionaries to map PersistentIdentifier -> UUID without triggering faults
+            performExport(to: url, isAuto: false)
+        }
+    }
+    
+    private func performExport(to url: URL, isAuto: Bool) {
+        // Build dictionaries to map PersistentIdentifier -> UUID without triggering faults
             var docMap = [PersistentIdentifier: UUID]()
             for d in documents where !d.isDeleted { docMap[d.persistentModelID] = d.id }
             
@@ -304,17 +324,20 @@ struct ContentView: View {
                     let data = try encoder.encode(backup)
                     try data.write(to: url)
                     await MainActor.run {
-                        self.alertMessage = "Exported successfully."
-                        self.showingAlert = true
+                        if !isAuto {
+                            self.alertMessage = "Exported successfully."
+                            self.showingAlert = true
+                        }
                     }
                 } catch {
                     await MainActor.run {
-                        self.alertMessage = "Failed to export: \(error.localizedDescription)"
-                        self.showingAlert = true
+                        if !isAuto {
+                            self.alertMessage = "Failed to export: \(error.localizedDescription)"
+                            self.showingAlert = true
+                        }
                     }
                 }
             }
-        }
     }
     
     private func importData() {
@@ -324,9 +347,14 @@ struct ContentView: View {
         panel.canChooseDirectories = false
         
         if panel.runModal() == .OK, let url = panel.url {
-            Task.detached {
-                do {
-                    let data = try Data(contentsOf: url)
+            performImport(from: url, isAuto: false)
+        }
+    }
+    
+    private func performImport(from url: URL, isAuto: Bool) {
+        Task.detached {
+            do {
+                let data = try Data(contentsOf: url)
                     let decoder = JSONDecoder()
                     decoder.dateDecodingStrategy = .custom { decoder in
                         let container = try decoder.singleValueContainer()
@@ -686,24 +714,28 @@ struct ContentView: View {
                         
                         do {
                             try self.modelContext.save()
-                            self.alertMessage = "Imported successfully."
+                            if !isAuto {
+                                self.alertMessage = "Imported successfully."
+                                self.showingAlert = true
+                            }
                         } catch {
-                            self.alertMessage = "Failed to save to database: \(error.localizedDescription)"
+                            if !isAuto {
+                                self.alertMessage = "Failed to save to database: \(error.localizedDescription)"
+                                self.showingAlert = true
+                            }
                         }
-                        self.showingAlert = true
                     }
                 } catch let DecodingError.dataCorrupted(context) {
-                    await MainActor.run { self.alertMessage = "Data corrupted: \(context.debugDescription)"; self.showingAlert = true }
+                    await MainActor.run { if !isAuto { self.alertMessage = "Data corrupted: \(context.debugDescription)"; self.showingAlert = true } }
                 } catch let DecodingError.keyNotFound(key, context) {
-                    await MainActor.run { self.alertMessage = "Missing key '\(key.stringValue)' at \(context.codingPath.map(\.stringValue).joined(separator: "."))"; self.showingAlert = true }
+                    await MainActor.run { if !isAuto { self.alertMessage = "Missing key '\(key.stringValue)' at \(context.codingPath.map(\.stringValue).joined(separator: "."))"; self.showingAlert = true } }
                 } catch let DecodingError.typeMismatch(type, context) {
-                    await MainActor.run { self.alertMessage = "Type mismatch for '\(context.codingPath.last?.stringValue ?? "unknown")'. Expected \(type)."; self.showingAlert = true }
+                    await MainActor.run { if !isAuto { self.alertMessage = "Type mismatch for '\(context.codingPath.last?.stringValue ?? "unknown")'. Expected \(type)."; self.showingAlert = true } }
                 } catch let DecodingError.valueNotFound(type, context) {
-                    await MainActor.run { self.alertMessage = "Value not found for '\(context.codingPath.last?.stringValue ?? "unknown")'. Expected \(type)."; self.showingAlert = true }
+                    await MainActor.run { if !isAuto { self.alertMessage = "Value not found for '\(context.codingPath.last?.stringValue ?? "unknown")'. Expected \(type)."; self.showingAlert = true } }
                 } catch {
-                    await MainActor.run { self.alertMessage = "Failed to import JSON: \(error.localizedDescription)"; self.showingAlert = true }
+                    await MainActor.run { if !isAuto { self.alertMessage = "Failed to import JSON: \(error.localizedDescription)"; self.showingAlert = true } }
                 }
             }
-        }
-}
+    }
 }
