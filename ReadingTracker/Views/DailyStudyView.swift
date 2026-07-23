@@ -119,6 +119,25 @@ struct DailyStudyView: View {
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(16)
                     
+                    let worstTasks = stats.taskRates.filter { $0.percentage <= 30 && $0.totalDays > 1 }
+                    if !worstTasks.isEmpty {
+                        HStack(alignment: .top) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .padding(.top, 2)
+                            
+                            let taskNames = worstTasks.map { $0.task.title }.joined(separator: ", ")
+                            Text("Focus on: \(taskNames)")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(12)
+                    }
+                    
                     // Leaderboard (Best & Worst)
                     if !stats.taskRates.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
@@ -145,7 +164,7 @@ struct DailyStudyView: View {
                                                 .frame(height: 6)
                                             
                                             Capsule()
-                                                .fill(rate.percentage < 50 && rate.totalDays > 1 ? Color.orange : Color.white.opacity(0.3))
+                                                .fill(rate.percentage <= 30 && rate.totalDays > 1 ? Color.orange : Color.white.opacity(0.3))
                                                 .frame(width: geometry.size.width * CGFloat(rate.percentage) / 100.0, height: 6)
                                         }
                                     }
@@ -157,25 +176,6 @@ struct DailyStudyView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(16)
-                        
-                        let worstTasks = stats.taskRates.filter { $0.percentage < 50 && $0.totalDays > 1 }
-                        if !worstTasks.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(worstTasks, id: \.task.id) { worst in
-                                    HStack {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .foregroundColor(.orange)
-                                        Text("Focus on: \(worst.task.title)")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                        Spacer()
-                                    }
-                                    .padding()
-                                    .background(Color.orange.opacity(0.1))
-                                    .cornerRadius(12)
-                                }
-                            }
-                        }
                     }
                     }
                 }
@@ -271,8 +271,9 @@ struct DailyStudyView: View {
         var taskRates: [TaskStat] = []
         
         for task in activeTasks {
-            let daysSinceCreation = Calendar.current.dateComponents([.day], from: task.createdAt, to: currentDate).day ?? 0
-            let totalPossibleForTask = min(7, daysSinceCreation + 1)
+            let createdLogicalDate = DailyStudyView.getLogicalDate(for: task.createdAt)
+            let validDatesCount = last7Dates.filter { $0 >= createdLogicalDate }.count
+            let totalPossibleForTask = max(1, validDatesCount)
             
             let completedDays = recentLogs.filter { $0.task?.id == task.id }.count
             totalCompleted += completedDays
