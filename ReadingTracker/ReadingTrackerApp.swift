@@ -41,7 +41,6 @@ struct ReadingTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .tint(.primary)
         }
         .defaultSize(width: 1000, height: 600)
         .modelContainer(sharedModelContainer)

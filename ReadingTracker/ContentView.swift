@@ -91,7 +91,6 @@ struct ContentView: View {
             }
             .navigationTitle("Tracker")
             .listStyle(.sidebar)
-            .tint(.gray)
             .toolbar(removing: .sidebarToggle)
         } detail: {
             switch selectedView {
