@@ -119,7 +119,7 @@ struct DailyStudyView: View {
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(16)
                     
-                    let worstTasks = stats.taskRates.filter { $0.percentage <= 30 && $0.totalDays > 1 }
+                    let worstTasks = stats.taskRates.filter { $0.percentage <= 30 }
                     if !worstTasks.isEmpty {
                         HStack(alignment: .top) {
                             Image(systemName: "exclamationmark.triangle.fill")
@@ -164,8 +164,8 @@ struct DailyStudyView: View {
                                                 .frame(height: 6)
                                             
                                             Capsule()
-                                                .fill(rate.percentage <= 30 && rate.totalDays > 1 ? Color.orange : Color.white.opacity(0.3))
-                                                .frame(width: geometry.size.width * CGFloat(rate.percentage) / 100.0, height: 6)
+                                                .fill(rate.percentage <= 30 ? Color.orange : Color.white.opacity(0.3))
+                                                .frame(width: geometry.size.width * max(0.02, CGFloat(rate.percentage) / 100.0), height: 6)
                                         }
                                     }
                                     .frame(height: 6)

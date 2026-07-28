@@ -8,14 +8,21 @@ struct PlanningView: View {
     
     @State private var newTodoText = ""
     @State private var newTodoDeadline: Date? = nil
-    @State private var selectedTab = "All"
-    let tabs = ["All", "Important", "General", "Work", "Study", "Personal"]
+    
+    @AppStorage("selectedTodoCategory") private var selectedTab = "Important"
+    @AppStorage("todoCategories") private var categoriesString = "Important,General,Work,Study,Personal"
+    
+    @State private var showingSettings = false
+    
+    var tabs: [String] {
+        categoriesString.components(separatedBy: ",").filter { !$0.isEmpty }
+    }
     
     var filteredTodos: [Todo] {
         var result = todos
         if selectedTab == "Important" {
             result = todos.filter { $0.isImportant }
-        } else if selectedTab != "All" {
+        } else {
             result = todos.filter { $0.status == selectedTab }
         }
         return result.sorted { $0.orderIndex < $1.orderIndex }
@@ -82,7 +89,7 @@ struct PlanningView: View {
                             ))
                             .textFieldStyle(.plain)
                             .strikethrough(todo.completed, color: .secondary)
-                            .foregroundColor(todo.completed ? .secondary : .primary)
+                            .foregroundColor(todo.completed ? .secondary : (todo.deadline != nil ? deadlineColor(todo.deadline!) : .primary))
                             
                             Spacer()
                             
@@ -104,10 +111,20 @@ struct PlanningView: View {
                                         .font(.caption)
                                 }
                                 .buttonStyle(.plain)
+                            } else {
+                                Button(action: {
+                                    todo.deadline = Date()
+                                    try? modelContext.save()
+                                }) {
+                                    Image(systemName: "calendar.badge.plus")
+                                        .foregroundColor(.gray)
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.plain)
                             }
                             
                             Menu {
-                                ForEach(["General", "Work", "Study", "Personal"], id: \.self) { status in
+                                ForEach(tabs.filter { $0 != "Important" }, id: \.self) { status in
                                     Button(status) {
                                         todo.status = status
                                         try? modelContext.save()
@@ -161,11 +178,22 @@ struct PlanningView: View {
             .background(Color(NSColor.controlBackgroundColor))
         }
         .navigationTitle("To-Do & Memo")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingSettings = true }) {
+                    Image(systemName: "gearshape")
+                }
+                .help("Settings")
+            }
+        }
+        .sheet(isPresented: $showingSettings) {
+            PlanningSettingsView(isPresented: $showingSettings)
+        }
     }
     
     private func addTodo() {
         guard !newTodoText.isEmpty else { return }
-        let currentStatus = (selectedTab == "All" || selectedTab == "Important") ? "General" : selectedTab
+        let currentStatus = selectedTab == "Important" ? "General" : selectedTab
         let maxOrder = todos.map { $0.orderIndex }.max() ?? -1
         let todo = Todo(text: newTodoText, status: currentStatus, orderIndex: maxOrder + 1, deadline: newTodoDeadline, isImportant: selectedTab == "Important")
         modelContext.insert(todo)
@@ -204,15 +232,27 @@ struct PlanningView: View {
 struct MemoEditorView: View {
     var memos: [GeneralMemo]
     @Environment(\.modelContext) private var modelContext
-    @State private var selectedTab: Int = 0
+    @AppStorage("selectedMemoTabIndex") private var selectedTab: Int = 0
+    @AppStorage("memoTabsOrder") private var memoTabsOrderString = ""
+    
     @State private var text: String = ""
     @State private var activeTabIndices: [Int] = [0, 1, 2, 3]
+    
+    var sortedTabIndices: [Int] {
+        let order = memoTabsOrderString.components(separatedBy: ",").compactMap { Int($0) }
+        return activeTabIndices.sorted { a, b in
+            let idxA = order.firstIndex(of: a) ?? Int.max
+            let idxB = order.firstIndex(of: b) ?? Int.max
+            if idxA == idxB { return a < b }
+            return idxA < idxB
+        }
+    }
     
     var body: some View {
         VStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(activeTabIndices, id: \.self) { index in
+                    ForEach(sortedTabIndices, id: \.self) { index in
                         let isSelected = selectedTab == index
                         HStack {
                             if isSelected {
@@ -328,5 +368,123 @@ struct MemoEditorView: View {
             modelContext.insert(newMemo)
             try? modelContext.save()
         }
+    }
+}
+
+struct PlanningSettingsView: View {
+    @Binding var isPresented: Bool
+    
+    @AppStorage("todoCategories") private var categoriesString = "Important,General,Work,Study,Personal"
+    @AppStorage("memoTabsOrder") private var memoTabsOrderString = ""
+    
+    @State private var categories: [String] = []
+    @State private var newCategory = ""
+    
+    @Environment(\.modelContext) private var modelContext
+    @Query private var memos: [GeneralMemo]
+    
+    @State private var memoTabIndices: [Int] = []
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Planning Settings").font(.title).bold()
+            
+            HStack(alignment: .top, spacing: 30) {
+                // Todo Categories
+                VStack(alignment: .leading) {
+                    Text("Todo Categories").font(.headline)
+                    List {
+                        ForEach(categories, id: \.self) { category in
+                            Text(category)
+                        }
+                        .onMove(perform: moveCategory)
+                        .onDelete(perform: deleteCategory)
+                    }
+                    .frame(height: 200)
+                    .border(Color.secondary.opacity(0.2))
+                    
+                    HStack {
+                        TextField("New Category", text: $newCategory)
+                            .onSubmit { addCategory() }
+                        Button(action: addCategory) { Image(systemName: "plus") }
+                            .disabled(newCategory.isEmpty)
+                    }
+                }
+                
+                // Memo Tabs Order
+                VStack(alignment: .leading) {
+                    Text("Memo Tabs Order").font(.headline)
+                    List {
+                        ForEach(memoTabIndices, id: \.self) { index in
+                            Text(getTabName(for: index))
+                        }
+                        .onMove(perform: moveMemoTab)
+                    }
+                    .frame(height: 200)
+                    .border(Color.secondary.opacity(0.2))
+                    
+                    Text("Drag to reorder memo tabs.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Button("Done") {
+                categoriesString = categories.joined(separator: ",")
+                memoTabsOrderString = memoTabIndices.map { String($0) }.joined(separator: ",")
+                isPresented = false
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top)
+        }
+        .padding(30)
+        .frame(width: 500, height: 450)
+        .onAppear {
+            categories = categoriesString.components(separatedBy: ",").filter { !$0.isEmpty }
+            
+            let storedIndices = Set(memos.map { $0.tabIndex })
+            let combined = storedIndices.union([0, 1, 2, 3])
+            
+            let order = memoTabsOrderString.components(separatedBy: ",").compactMap { Int($0) }
+            memoTabIndices = Array(combined).sorted { a, b in
+                let idxA = order.firstIndex(of: a) ?? Int.max
+                let idxB = order.firstIndex(of: b) ?? Int.max
+                if idxA == idxB { return a < b }
+                return idxA < idxB
+            }
+        }
+    }
+    
+    private func getTabName(for index: Int) -> String {
+        if let memo = memos.first(where: { $0.tabIndex == index }), let name = memo.tabName, !name.isEmpty {
+            return name
+        }
+        return "Tab \(index + 1)"
+    }
+    
+    private func addCategory() {
+        guard !newCategory.isEmpty && !categories.contains(newCategory) else { return }
+        categories.append(newCategory)
+        newCategory = ""
+    }
+    
+    private func moveCategory(from source: IndexSet, to destination: Int) {
+        categories.move(fromOffsets: source, toOffset: destination)
+    }
+    
+    private func deleteCategory(offsets: IndexSet) {
+        let toDelete = offsets.map { categories[$0] }
+        if toDelete.contains("Important") {
+            categories.remove(atOffsets: offsets)
+            if !categories.contains("Important") {
+                categories.insert("Important", at: 0)
+            }
+        } else {
+            categories.remove(atOffsets: offsets)
+        }
+    }
+    
+    private func moveMemoTab(from source: IndexSet, to destination: Int) {
+        memoTabIndices.move(fromOffsets: source, toOffset: destination)
     }
 }

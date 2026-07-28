@@ -308,6 +308,26 @@ final class DailyTaskLog {
     }
 }
 
+@Model
+final class ClassNote {
+    var id: UUID = UUID()
+    var title: String
+    var courseName: String
+    var content: String
+    var date: Date
+    var orderIndex: Int = 0
+    var tags: [String] = []
+    
+    init(title: String = "", courseName: String = "", content: String = "", date: Date = Date(), orderIndex: Int = 0, tags: [String] = []) {
+        self.title = title
+        self.courseName = courseName
+        self.content = content
+        self.date = date
+        self.orderIndex = orderIndex
+        self.tags = tags
+    }
+}
+
 // MARK: - Backup & Restore Models
 
 struct FlexibleID: Codable, Hashable {
@@ -350,10 +370,11 @@ struct BackupData: Codable {
     var people: [BackupPerson]?
     var dailyTasks: [BackupDailyTask]?
     var dailyTaskLogs: [BackupDailyTaskLog]?
+    var classNotes: [BackupClassNote]?
     var tagOrder: String?
     var hasDecodingErrors: Bool = false
 
-    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, movies: [BackupMovie]? = nil, businesses: [BackupBusiness]? = nil, diaries: [BackupDiaryEntry]? = nil, people: [BackupPerson]? = nil, dailyTasks: [BackupDailyTask]? = nil, dailyTaskLogs: [BackupDailyTaskLog]? = nil, tagOrder: String? = nil) {
+    init(documents: [BackupDocument]? = nil, progressLogs: [BackupProgressLog]? = nil, todos: [BackupTodo]? = nil, papers: [BackupPaper]? = nil, conceptNodes: [BackupConceptNode]? = nil, conceptLinks: [BackupConceptLink]? = nil, memos: [BackupMemo]? = nil, movies: [BackupMovie]? = nil, businesses: [BackupBusiness]? = nil, diaries: [BackupDiaryEntry]? = nil, people: [BackupPerson]? = nil, dailyTasks: [BackupDailyTask]? = nil, dailyTaskLogs: [BackupDailyTaskLog]? = nil, classNotes: [BackupClassNote]? = nil, tagOrder: String? = nil) {
         self.documents = documents
         self.progressLogs = progressLogs
         self.todos = todos
@@ -367,6 +388,7 @@ struct BackupData: Codable {
         self.people = people
         self.dailyTasks = dailyTasks
         self.dailyTaskLogs = dailyTaskLogs
+        self.classNotes = classNotes
         self.tagOrder = tagOrder
     }
 
@@ -411,6 +433,7 @@ struct BackupData: Codable {
         people = decodeArray(["people", "persons"])
         dailyTasks = decodeArray(["dailyTasks"])
         dailyTaskLogs = decodeArray(["dailyTaskLogs"])
+        classNotes = decodeArray(["classNotes", "classes"])
         
         if let k = DynamicCodingKeys(stringValue: "tagOrder") {
             tagOrder = try? container.decodeIfPresent(String.self, forKey: k)
@@ -446,6 +469,7 @@ struct BackupData: Codable {
         if let k = DynamicCodingKeys(stringValue: "people") { try container.encodeIfPresent(people, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "dailyTasks") { try container.encodeIfPresent(dailyTasks, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "dailyTaskLogs") { try container.encodeIfPresent(dailyTaskLogs, forKey: k) }
+        if let k = DynamicCodingKeys(stringValue: "classNotes") { try container.encodeIfPresent(classNotes, forKey: k) }
         if let k = DynamicCodingKeys(stringValue: "tagOrder") { try container.encodeIfPresent(tagOrder, forKey: k) }
     }
 }
@@ -642,6 +666,16 @@ struct BackupDailyTaskLog: Codable {
     var logicalDate: String?
     var isCompleted: Bool?
     var taskId: FlexibleID?
+}
+
+struct BackupClassNote: Codable {
+    var id: FlexibleID?
+    var title: String?
+    var courseName: String?
+    var content: String?
+    var date: Date?
+    var orderIndex: Int?
+    var tags: [String]?
 }
 
 extension String {

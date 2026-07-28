@@ -17,7 +17,8 @@ struct ReadingTrackerApp: App {
             DiaryEntry.self,
             Person.self,
             DailyTask.self,
-            DailyTaskLog.self
+            DailyTaskLog.self,
+            ClassNote.self
         ])
         
         let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!

@@ -13,12 +13,25 @@ struct PeopleView: View {
     @State private var filterEnglish: Bool = false
     
     @State private var draggedPerson: Person? = nil
+    @State private var showingSettings = false
     
-    let roles = ["YouTuber", "Researcher", "Blogger", "News", "Other"]
+    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Other,Group,Organization"
+    @AppStorage("peopleTagsOrder") private var tagsOrderString = ""
+    
+    var roles: [String] {
+        rolesString.components(separatedBy: ",").filter { !$0.isEmpty }
+    }
     
     private var allTags: [String] {
         let tags = people.flatMap { $0.tags }
-        return Array(Set(tags)).sorted()
+        let uniqueTags = Array(Set(tags))
+        let order = tagsOrderString.components(separatedBy: ",").filter { !$0.isEmpty }
+        return uniqueTags.sorted { a, b in
+            let idxA = order.firstIndex(of: a) ?? Int.max
+            let idxB = order.firstIndex(of: b) ?? Int.max
+            if idxA == idxB { return a < b }
+            return idxA < idxB
+        }
     }
     
     var filteredPeople: [Person] {
@@ -150,11 +163,21 @@ struct PeopleView: View {
         .navigationTitle("People")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: { showingAddPerson = true }) {
-                    Image(systemName: "plus")
+                HStack {
+                    Button(action: { showingSettings = true }) {
+                        Image(systemName: "gearshape")
+                    }
+                    .help("Settings")
+                    
+                    Button(action: { showingAddPerson = true }) {
+                        Image(systemName: "plus")
+                    }
+                    .help("Add Person")
                 }
-                .help("Add Person")
             }
+        }
+        .sheet(isPresented: $showingSettings) {
+            PeopleSettingsView(isPresented: $showingSettings, currentTags: allTags)
         }
         .sheet(isPresented: $showingAddPerson) {
             AddPersonView(isPresented: $showingAddPerson)
@@ -321,6 +344,104 @@ struct RoleBadge: View {
     }
 }
 
+struct PeopleSettingsView: View {
+    @Binding var isPresented: Bool
+    var currentTags: [String]
+    
+    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Other,Group,Organization"
+    @AppStorage("peopleTagsOrder") private var tagsOrderString = ""
+    
+    @State private var roles: [String] = []
+    @State private var tags: [String] = []
+    @State private var newRole = ""
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Settings").font(.title).bold()
+            
+            HStack(alignment: .top, spacing: 30) {
+                // Roles
+                VStack(alignment: .leading) {
+                    Text("Roles").font(.headline)
+                    List {
+                        ForEach(roles, id: \.self) { role in
+                            Text(role)
+                        }
+                        .onMove(perform: moveRole)
+                        .onDelete(perform: deleteRole)
+                    }
+                    .frame(height: 200)
+                    .border(Color.secondary.opacity(0.2))
+                    
+                    HStack {
+                        TextField("New Role", text: $newRole)
+                            .onSubmit { addRole() }
+                        Button(action: addRole) { Image(systemName: "plus") }
+                            .disabled(newRole.isEmpty)
+                    }
+                }
+                
+                // Tags
+                VStack(alignment: .leading) {
+                    Text("Tags Order").font(.headline)
+                    List {
+                        ForEach(tags, id: \.self) { tag in
+                            Text(tag)
+                        }
+                        .onMove(perform: moveTag)
+                    }
+                    .frame(height: 200)
+                    .border(Color.secondary.opacity(0.2))
+                    
+                    Text("Tags are gathered automatically. Reorder them above.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Button("Done") {
+                rolesString = roles.joined(separator: ",")
+                tagsOrderString = tags.joined(separator: ",")
+                isPresented = false
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top)
+        }
+        .padding(30)
+        .frame(width: 500, height: 450)
+        .onAppear {
+            roles = rolesString.components(separatedBy: ",").filter { !$0.isEmpty }
+            
+            let order = tagsOrderString.components(separatedBy: ",").filter { !$0.isEmpty }
+            var sortedTags = currentTags.sorted { a, b in
+                let idxA = order.firstIndex(of: a) ?? Int.max
+                let idxB = order.firstIndex(of: b) ?? Int.max
+                if idxA == idxB { return a < b }
+                return idxA < idxB
+            }
+            tags = sortedTags
+        }
+    }
+    
+    private func addRole() {
+        guard !newRole.isEmpty && !roles.contains(newRole) else { return }
+        roles.append(newRole)
+        newRole = ""
+    }
+    
+    private func moveRole(from source: IndexSet, to destination: Int) {
+        roles.move(fromOffsets: source, toOffset: destination)
+    }
+    
+    private func deleteRole(offsets: IndexSet) {
+        roles.remove(atOffsets: offsets)
+    }
+    
+    private func moveTag(from source: IndexSet, to destination: Int) {
+        tags.move(fromOffsets: source, toOffset: destination)
+    }
+}
+
 struct AddPersonView: View {
     @Binding var isPresented: Bool
     @Environment(\.modelContext) private var modelContext
@@ -334,7 +455,11 @@ struct AddPersonView: View {
     @State private var isEnglish: Bool = false
     @State private var selectedImageData: Data? = nil
     
-    let roles = ["YouTuber", "Researcher", "Blogger", "News", "Other"]
+    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Other,Group,Organization"
+    
+    var roles: [String] {
+        rolesString.components(separatedBy: ",").filter { !$0.isEmpty }
+    }
     
     var body: some View {
         VStack(spacing: 20) {
@@ -425,7 +550,12 @@ struct EditPersonView: View {
     @State private var tagsString: String = ""
     @State private var selectedImageData: Data? = nil
     
-    let roles = ["YouTuber", "Researcher", "Blogger", "News", "Other"]
+    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Other,Group,Organization"
+    
+    var roles: [String] {
+        let r = rolesString.components(separatedBy: ",").filter { !$0.isEmpty }
+        return r.contains(person.role) ? r : r + [person.role]
+    }
     
     var body: some View {
         VStack(spacing: 20) {

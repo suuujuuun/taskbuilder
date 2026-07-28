@@ -20,6 +20,7 @@ struct ContentView: View {
     @Query private var people: [Person]
     @Query private var dailyTasks: [DailyTask]
     @Query private var dailyTaskLogs: [DailyTaskLog]
+    @Query private var classNotes: [ClassNote]
     
     @AppStorage("sidebarTabOrder") private var sidebarTabOrderString: String = ""
     @AppStorage("tagOrder") private var tagOrderString: String = ""
@@ -40,6 +41,7 @@ struct ContentView: View {
         case diary
         case people
         case dailyTasks
+        case classNotes
         
         var title: String {
             switch self {
@@ -53,6 +55,7 @@ struct ContentView: View {
             case .business: return "Business"
             case .people: return "People"
             case .dailyTasks: return "Daily Study"
+            case .classNotes: return "Class Notes"
             }
         }
         
@@ -68,6 +71,7 @@ struct ContentView: View {
             case .business: return "briefcase"
             case .people: return "person.2"
             case .dailyTasks: return "checkmark.seal"
+            case .classNotes: return "books.vertical"
             }
         }
     }
@@ -110,6 +114,8 @@ struct ContentView: View {
                 PeopleView()
             case .dailyTasks:
                 DailyStudyView()
+            case .classNotes:
+                ClassNotesView()
             default:
                 Text("Select a view from the sidebar")
                     .font(.largeTitle)
@@ -286,6 +292,10 @@ struct ContentView: View {
                 return BackupDailyTaskLog(id: FlexibleID(uuid: l.id), logicalDate: l.logicalDate, isCompleted: l.isCompleted, taskId: tId.map { FlexibleID(uuid: $0) })
             }
             
+            let safeClassNotes = classNotes.filter { !$0.isDeleted }.map { c in
+                BackupClassNote(id: FlexibleID(uuid: c.id), title: c.title, courseName: c.courseName, content: c.content, date: c.date, orderIndex: c.orderIndex, tags: c.tags)
+            }
+            
             let tOrder = tagOrderString
             let docsDir = getDocumentsDirectory()
             
@@ -313,7 +323,7 @@ struct ContentView: View {
                 
                 let backup = BackupData(
                     documents: safeDocs, progressLogs: safeLogs, todos: safeTodos, papers: safePapers,
-                    conceptNodes: safeNodes, conceptLinks: safeLinks, memos: safeMemos, movies: moviesBackup, businesses: safeBusinesses, diaries: safeDiaries, people: peopleBackup, dailyTasks: safeDailyTasks, dailyTaskLogs: safeDailyTaskLogs, tagOrder: tOrder
+                    conceptNodes: safeNodes, conceptLinks: safeLinks, memos: safeMemos, movies: moviesBackup, businesses: safeBusinesses, diaries: safeDiaries, people: peopleBackup, dailyTasks: safeDailyTasks, dailyTaskLogs: safeDailyTaskLogs, classNotes: safeClassNotes, tagOrder: tOrder
                 )
                 
                 let encoder = JSONEncoder()
@@ -416,6 +426,9 @@ struct ContentView: View {
 
                         var existingDailyTaskLogs = [UUID: DailyTaskLog]()
                         for l in self.dailyTaskLogs { existingDailyTaskLogs[l.id] = l }
+
+                        var existingClassNotes = [UUID: ClassNote]()
+                        for c in self.classNotes { existingClassNotes[c.id] = c }
 
                         var docMap = [UUID: Document]()
                         var insertedLogIds = Set<UUID>()
@@ -709,6 +722,22 @@ struct ContentView: View {
                                     log.task = task
                                 }
                                 self.modelContext.insert(log)
+                            }
+                        }
+                        
+                        for b in backup.classNotes ?? [] {
+                            let uuid = b.id?.uuid ?? UUID()
+                            if let existing = existingClassNotes[uuid] {
+                                existing.title = b.title ?? "Untitled"
+                                existing.courseName = b.courseName ?? ""
+                                existing.content = b.content ?? ""
+                                existing.date = b.date ?? Date()
+                                existing.orderIndex = b.orderIndex ?? 0
+                                existing.tags = b.tags ?? []
+                            } else {
+                                let note = ClassNote(title: b.title ?? "Untitled", courseName: b.courseName ?? "", content: b.content ?? "", date: b.date ?? Date(), orderIndex: b.orderIndex ?? 0, tags: b.tags ?? [])
+                                note.id = uuid
+                                self.modelContext.insert(note)
                             }
                         }
                         
