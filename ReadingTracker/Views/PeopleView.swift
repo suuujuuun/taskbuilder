@@ -15,7 +15,7 @@ struct PeopleView: View {
     @State private var draggedPerson: Person? = nil
     @State private var showingSettings = false
     
-    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Other,Group,Organization"
+    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Group,Organization"
     @AppStorage("peopleTagsOrder") private var tagsOrderString = ""
     
     var roles: [String] {
@@ -348,7 +348,7 @@ struct PeopleSettingsView: View {
     @Binding var isPresented: Bool
     var currentTags: [String]
     
-    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Other,Group,Organization"
+    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Group,Organization"
     @AppStorage("peopleTagsOrder") private var tagsOrderString = ""
     
     @State private var roles: [String] = []
@@ -455,7 +455,7 @@ struct AddPersonView: View {
     @State private var isEnglish: Bool = false
     @State private var selectedImageData: Data? = nil
     
-    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Other,Group,Organization"
+    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Group,Organization"
     
     var roles: [String] {
         rolesString.components(separatedBy: ",").filter { !$0.isEmpty }
@@ -550,7 +550,7 @@ struct EditPersonView: View {
     @State private var tagsString: String = ""
     @State private var selectedImageData: Data? = nil
     
-    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Other,Group,Organization"
+    @AppStorage("peopleRoles") private var rolesString = "YouTuber,Researcher,Blogger,News,Group,Organization"
     
     var roles: [String] {
         let r = rolesString.components(separatedBy: ",").filter { !$0.isEmpty }
