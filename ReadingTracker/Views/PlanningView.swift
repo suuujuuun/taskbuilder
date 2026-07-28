@@ -59,13 +59,28 @@ struct PlanningView: View {
                 }
                 .padding([.horizontal, .top])
                 
-                Picker("Category", selection: $selectedTab) {
-                    ForEach(tabs, id: \.self) { tab in
-                        Text(tab).tag(tab)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(tabs, id: \.self) { tab in
+                            Button(action: {
+                                selectedTab = tab
+                            }) {
+                                Text(tab)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 6)
+                                    .background(selectedTab == tab ? Color.accentColor : Color(NSColor.controlBackgroundColor))
+                                    .foregroundColor(selectedTab == tab ? .white : .primary)
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
+                    .padding(.horizontal)
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
                 .padding(.bottom, 8)
                 
                 List {
@@ -93,35 +108,7 @@ struct PlanningView: View {
                             
                             Spacer()
                             
-                            if let deadline = todo.deadline {
-                                Text(deadline, format: .dateTime.month().day())
-                                    .font(.caption)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(deadlineColor(deadline).opacity(0.1))
-                                    .foregroundColor(deadlineColor(deadline))
-                                    .cornerRadius(4)
-                                    
-                                Button(action: {
-                                    todo.deadline = nil
-                                    try? modelContext.save()
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.gray)
-                                        .font(.caption)
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                Button(action: {
-                                    todo.deadline = Date()
-                                    try? modelContext.save()
-                                }) {
-                                    Image(systemName: "calendar.badge.plus")
-                                        .foregroundColor(.gray)
-                                        .font(.caption)
-                                }
-                                .buttonStyle(.plain)
-                            }
+                            TodoDeadlineEditor(todo: todo)
                             
                             Menu {
                                 ForEach(tabs.filter { $0 != "Important" }, id: \.self) { status in
@@ -486,5 +473,92 @@ struct PlanningSettingsView: View {
     
     private func moveMemoTab(from source: IndexSet, to destination: Int) {
         memoTabIndices.move(fromOffsets: source, toOffset: destination)
+    }
+}
+
+struct TodoDeadlineEditor: View {
+    @Bindable var todo: Todo
+    @Environment(\.modelContext) private var modelContext
+    @State private var showingDatePicker = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let deadline = todo.deadline {
+                Text(deadline, format: .dateTime.month().day())
+                    .font(.caption)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(deadlineColor(deadline).opacity(0.1))
+                    .foregroundColor(deadlineColor(deadline))
+                    .cornerRadius(4)
+                    .onTapGesture {
+                        showingDatePicker = true
+                    }
+                    .popover(isPresented: $showingDatePicker) {
+                        VStack {
+                            DatePicker("", selection: Binding(
+                                get: { todo.deadline ?? Date() },
+                                set: { newValue in
+                                    todo.deadline = newValue
+                                    try? modelContext.save()
+                                }
+                            ), displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .labelsHidden()
+                        }
+                        .padding()
+                        .frame(width: 250)
+                    }
+                    
+                Button(action: {
+                    todo.deadline = nil
+                    try? modelContext.save()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button(action: {
+                    todo.deadline = Date()
+                    try? modelContext.save()
+                    showingDatePicker = true
+                }) {
+                    Image(systemName: "calendar.badge.plus")
+                        .foregroundColor(.gray)
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingDatePicker) {
+                    VStack {
+                        DatePicker("", selection: Binding(
+                            get: { todo.deadline ?? Date() },
+                            set: { newValue in
+                                todo.deadline = newValue
+                                try? modelContext.save()
+                            }
+                        ), displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                    }
+                    .padding()
+                    .frame(width: 250)
+                }
+            }
+        }
+    }
+    
+    private func deadlineColor(_ date: Date) -> Color {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: date)
+        
+        let components = calendar.dateComponents([.day], from: today, to: target)
+        if let days = components.day {
+            if days < 0 { return .red }
+            if days <= 3 { return .orange }
+        }
+        return .blue
     }
 }
