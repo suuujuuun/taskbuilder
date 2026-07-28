@@ -365,10 +365,22 @@ struct PeopleSettingsView: View {
                     Text("Roles").font(.headline)
                     List {
                         ForEach(roles, id: \.self) { role in
-                            Text(role)
+                            HStack {
+                                Text(role)
+                                Spacer()
+                                Button(action: {
+                                    if let index = roles.firstIndex(of: role) {
+                                        roles.remove(at: index)
+                                    }
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .foregroundColor(.gray)
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                         .onMove(perform: moveRole)
-                        .onDelete(perform: deleteRole)
                     }
                     .frame(height: 200)
                     .border(Color.secondary.opacity(0.2))
