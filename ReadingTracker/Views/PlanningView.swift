@@ -60,19 +60,20 @@ struct PlanningView: View {
                 .padding([.horizontal, .top])
                 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 4) {
                         ForEach(tabs, id: \.self) { tab in
                             Button(action: {
                                 selectedTab = tab
                             }) {
                                 Text(tab)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 6)
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
                                     .background(selectedTab == tab ? Color.gray.opacity(0.2) : Color(NSColor.controlBackgroundColor))
                                     .foregroundColor(.primary)
-                                    .cornerRadius(8)
+                                    .cornerRadius(6)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
+                                        RoundedRectangle(cornerRadius: 6)
                                             .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                                     )
                             }
