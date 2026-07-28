@@ -68,8 +68,8 @@ struct PlanningView: View {
                                 Text(tab)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 6)
-                                    .background(selectedTab == tab ? Color.accentColor : Color(NSColor.controlBackgroundColor))
-                                    .foregroundColor(selectedTab == tab ? .white : .primary)
+                                    .background(selectedTab == tab ? Color.gray.opacity(0.2) : Color(NSColor.controlBackgroundColor))
+                                    .foregroundColor(.primary)
                                     .cornerRadius(8)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 8)
@@ -104,7 +104,7 @@ struct PlanningView: View {
                             ))
                             .textFieldStyle(.plain)
                             .strikethrough(todo.completed, color: .secondary)
-                            .foregroundColor(todo.completed ? .secondary : (todo.deadline != nil ? deadlineColor(todo.deadline!) : .primary))
+                            .foregroundColor(todo.completed ? .secondary : .primary)
                             
                             Spacer()
                             
@@ -192,8 +192,8 @@ struct PlanningView: View {
     private func deadlineColor(_ date: Date) -> Color {
         let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: date)).day ?? 0
         if days < 0 { return .red }
-        if days <= 3 { return .orange }
-        return .secondary
+        if days <= 7 { return .orange }
+        return .primary
     }
     
     private func moveTodos(from source: IndexSet, to destination: Int) {
@@ -369,6 +369,7 @@ struct PlanningSettingsView: View {
     
     @Environment(\.modelContext) private var modelContext
     @Query private var memos: [GeneralMemo]
+    @Query private var todos: [Todo]
     
     @State private var memoTabIndices: [Int] = []
     
@@ -382,10 +383,31 @@ struct PlanningSettingsView: View {
                     Text("Todo Categories").font(.headline)
                     List {
                         ForEach(categories, id: \.self) { category in
-                            Text(category)
+                            HStack {
+                                Text(category)
+                                Spacer()
+                                if category != "Important" {
+                                    Button(action: {
+                                        if let index = categories.firstIndex(of: category) {
+                                            // Reassign todos in this category to "Important"
+                                            for todo in todos where todo.status == category {
+                                                todo.status = "General"
+                                                todo.isImportant = false
+                                            }
+                                            try? modelContext.save()
+                                            
+                                            categories.remove(at: index)
+                                        }
+                                    }) {
+                                        Image(systemName: "xmark")
+                                            .foregroundColor(.gray)
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
                         .onMove(perform: moveCategory)
-                        .onDelete(perform: deleteCategory)
                     }
                     .frame(height: 200)
                     .border(Color.secondary.opacity(0.2))
@@ -557,8 +579,8 @@ struct TodoDeadlineEditor: View {
         let components = calendar.dateComponents([.day], from: today, to: target)
         if let days = components.day {
             if days < 0 { return .red }
-            if days <= 3 { return .orange }
+            if days <= 7 { return .orange }
         }
-        return .blue
+        return .primary
     }
 }
