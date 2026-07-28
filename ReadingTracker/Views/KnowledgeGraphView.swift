@@ -282,16 +282,9 @@ struct KnowledgeGraphView: View {
                             
                             ScrollView {
                                 VStack(alignment: .leading) {
-                                    let processedContent = node.content.replacingOccurrences(of: "\n", with: "  \n")
-                                    if let attrStr = try? AttributedString(markdown: processedContent, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)) {
-                                        Text(attrStr)
-                                            .font(.body)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    } else {
-                                        Text(node.content)
-                                            .font(.body)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
+                                    Text(node.content)
+                                        .font(.body)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .padding(.horizontal)
                                 .contentShape(Rectangle())

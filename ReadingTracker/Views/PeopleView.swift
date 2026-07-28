@@ -413,7 +413,7 @@ struct PeopleSettingsView: View {
             roles = rolesString.components(separatedBy: ",").filter { !$0.isEmpty }
             
             let order = tagsOrderString.components(separatedBy: ",").filter { !$0.isEmpty }
-            var sortedTags = currentTags.sorted { a, b in
+            let sortedTags = currentTags.sorted { a, b in
                 let idxA = order.firstIndex(of: a) ?? Int.max
                 let idxB = order.firstIndex(of: b) ?? Int.max
                 if idxA == idxB { return a < b }
